@@ -35,7 +35,12 @@ export function VoiceCommandPanel({
         <span className={`status-dot ${isListening ? "listening" : ""}`} />
       </div>
 
-      <button className="listen-button" disabled={!isSupported} type="button" onClick={onToggleListening}>
+      <button
+        className={`listen-button ${isListening ? "listening" : ""}`}
+        disabled={!isSupported}
+        type="button"
+        onClick={onToggleListening}
+      >
         {isListening ? "Stop listening" : "Start listening"}
       </button>
 
