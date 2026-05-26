@@ -62,7 +62,6 @@ function App() {
       <section className="hero">
         <div>
           <p className="eyebrow">DanceCue</p>
-          <h1>Practice music that listens back.</h1>
           <p>
             Load a track, mark rehearsal sections, and control jumps or loops with short voice
             commands while you stay in motion.
