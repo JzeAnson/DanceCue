@@ -45,7 +45,7 @@ export function AudioPlayer({
         </div>
         <label className="file-picker">
           <input
-            accept="audio/*"
+            accept=".mp3,audio/mpeg,audio/mp3,audio/*"
             type="file"
             onChange={(event) => {
               const file = event.target.files?.[0];
