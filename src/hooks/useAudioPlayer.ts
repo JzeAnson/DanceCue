@@ -10,6 +10,8 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [loopMarkerId, setLoopMarkerId] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
@@ -21,9 +23,11 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
   const loopMarker = sortedMarkers.find((marker) => marker.id === loopMarkerId) ?? null;
 
   const activeMarker = useMemo(() => {
-    return sortedMarkers.reduce<Marker | null>((active, marker) => {
-      return marker.time <= currentTime ? marker : active;
-    }, null);
+    return sortedMarkers.reduce<Marker | null>(
+      (active, marker) =>
+        marker.time <= currentTime && currentTime < marker.endTime ? marker : active,
+      null,
+    );
   }, [currentTime, sortedMarkers]);
 
   const loadFile = useCallback(
@@ -41,10 +45,14 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
       const url = URL.createObjectURL(file);
       objectUrlRef.current = url;
       audio.src = url;
+      audio.loop = false;
+      audio.playbackRate = 1;
       audio.load();
       setCurrentTime(0);
       setDuration(0);
       setIsPlaying(false);
+      setIsLooping(false);
+      setPlaybackRate(1);
       setLoopMarkerId(null);
     },
     [audioRef],
@@ -107,15 +115,47 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
 
   const startLoop = useCallback(
     (marker: Marker) => {
+      if (audioRef.current) {
+        audioRef.current.loop = false;
+      }
+
+      setIsLooping(false);
       setLoopMarkerId(marker.id);
       jumpToMarker(marker);
     },
-    [jumpToMarker],
+    [audioRef, jumpToMarker],
   );
 
   const stopLoop = useCallback(() => {
     setLoopMarkerId(null);
   }, []);
+
+  const toggleLoop = useCallback(() => {
+    setIsLooping((currentValue) => {
+      const nextValue = !currentValue;
+
+      if (audioRef.current) {
+        audioRef.current.loop = nextValue;
+      }
+
+      if (nextValue) {
+        setLoopMarkerId(null);
+      }
+
+      return nextValue;
+    });
+  }, [audioRef]);
+
+  const setSpeed = useCallback(
+    (speed: number) => {
+      setPlaybackRate(speed);
+
+      if (audioRef.current) {
+        audioRef.current.playbackRate = speed;
+      }
+    },
+    [audioRef],
+  );
 
   useEffect(() => {
     return () => {
@@ -141,9 +181,7 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
         return;
       }
 
-      const loopIndex = sortedMarkers.findIndex((marker) => marker.id === loopMarker.id);
-      const nextMarker = sortedMarkers[loopIndex + 1];
-      const loopEnd = nextMarker?.time ?? duration;
+      const loopEnd = loopMarker.endTime || duration;
 
       if (loopEnd > loopMarker.time && nextTime >= loopEnd) {
         audio.currentTime = loopMarker.time;
@@ -172,7 +210,9 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
     activeMarker,
     currentTime,
     duration,
+    isLooping,
     isPlaying,
+    playbackRate,
     loopMarker,
     jumpToMarker,
     loadFile,
@@ -183,5 +223,7 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
     skipBy,
     startLoop,
     stopLoop,
+    toggleLoop,
+    setSpeed,
   };
 }

@@ -1,15 +1,37 @@
+import { useRef } from "react";
+
 type AudioPlayerProps = {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   currentTime: number;
   duration: number;
+  isMarkerDraftActive: boolean;
+  isLooping: boolean;
   isPlaying: boolean;
+  markerDraftRange: { start: number; end: number } | null;
   onFileSelected: (file: File) => void;
+  onLoopToggle: () => void;
+  onMarkerDraftChange: (range: { start: number; end: number } | null) => void;
   onPause: () => void;
   onPlay: () => void;
-  onRestart: () => void;
   onSeek: (time: number) => void;
   onSkip: (seconds: number) => void;
+  onSpeedChange: (speed: number) => void;
+  playbackRate: number;
 };
+
+const controlButtonClass =
+  "grid size-12 shrink-0 place-items-center rounded-full border border-white/5 bg-white/[0.07] text-xs font-black text-zinc-100 shadow-lg shadow-black/25 transition hover:border-fuchsia-200/30 hover:bg-white/[0.11] active:scale-95 disabled:cursor-not-allowed disabled:opacity-45";
+const loopButtonOffClass =
+  "grid size-12 shrink-0 place-items-center rounded-full border border-white/5 bg-white/[0.07] text-xs font-black text-zinc-100 shadow-lg shadow-black/25 transition hover:border-fuchsia-200/30 hover:bg-white/[0.11] active:scale-95";
+const loopButtonOnClass =
+  "grid size-12 shrink-0 place-items-center rounded-full border-2 border-fuchsia-100 bg-[#e9a8ff] text-xs font-black text-[#221129] shadow-[0_0_0_3px_rgba(233,168,255,0.24),0_0_26px_rgba(233,168,255,0.8)] transition hover:bg-[#f0c4ff] active:scale-95";
+const panelClass = "rounded-[1.65rem] bg-[#101014] px-3 pb-3 pt-3 shadow-lg shadow-black/25";
+const markerClass = "font-mono text-[0.57rem] font-black tracking-normal text-zinc-300";
+const waveformHeights = [
+  22, 30, 18, 27, 35, 24, 31, 16, 38, 22, 28, 17, 34, 25, 19, 36, 42, 23, 31, 18, 35, 27, 21,
+  32, 17, 25, 37, 29, 21, 34, 40, 18, 28, 36, 24, 32, 19,
+];
+const speedOptions = [0.75, 1, 1.25, 1.5];
 
 export function formatTime(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds)) {
@@ -28,23 +50,51 @@ export function AudioPlayer({
   audioRef,
   currentTime,
   duration,
+  isMarkerDraftActive,
+  isLooping,
   isPlaying,
+  markerDraftRange,
   onFileSelected,
+  onLoopToggle,
+  onMarkerDraftChange,
   onPause,
   onPlay,
-  onRestart,
   onSeek,
   onSkip,
+  onSpeedChange,
+  playbackRate,
 }: AudioPlayerProps) {
+  const dragAnchorRef = useRef<number | null>(null);
+  const didDragRef = useRef(false);
+  const progress = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
+  const hasDraftRange =
+    isMarkerDraftActive && duration > 0 && markerDraftRange && markerDraftRange.end > markerDraftRange.start;
+  const draftStart = hasDraftRange ? (markerDraftRange.start / duration) * 100 : 0;
+  const draftWidth = hasDraftRange ? ((markerDraftRange.end - markerDraftRange.start) / duration) * 100 : 0;
+
+  const getTimeFromPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const position = (event.clientX - bounds.left) / bounds.width;
+    const boundedPosition = Math.min(Math.max(position, 0), 1);
+
+    return boundedPosition * duration;
+  };
+
+  const updateDraftRange = (anchorTime: number, pointerTime: number) => {
+    const start = Math.min(anchorTime, pointerTime);
+    const end = Math.max(anchorTime, pointerTime);
+
+    onMarkerDraftChange({ start, end });
+  };
+
   return (
-    <section className="panel player-panel" aria-label="Music player">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Track</p>
-          <h2>Rehearsal Player</h2>
+    <section className={panelClass} aria-label="Music player">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div className="grid min-w-0 flex-1 grid-cols-4 gap-3 text-center">
         </div>
-        <label className="file-picker">
+        <label className="inline-flex min-h-8 cursor-pointer items-center justify-center rounded-full border border-fuchsia-200/20 bg-fuchsia-200/10 px-3 text-[0.68rem] font-black text-fuchsia-100 transition hover:border-fuchsia-100/45">
           <input
+            className="absolute size-0 opacity-0"
             accept=".mp3,audio/mpeg,audio/mp3,audio/*"
             type="file"
             onChange={(event) => {
@@ -55,41 +105,155 @@ export function AudioPlayer({
               }
             }}
           />
-          Load song
+          Load
         </label>
       </div>
 
       <audio ref={audioRef} />
 
-      <div className="timeline">
-        <span>{formatTime(currentTime)}</span>
-        <input
-          aria-label="Track position"
-          disabled={!duration}
-          max={duration || 0}
-          min={0}
-          step={0.1}
-          type="range"
-          value={currentTime}
-          onChange={(event) => onSeek(Number(event.target.value))}
+      <div
+        className={`relative mt-2 h-9 touch-none overflow-hidden rounded-lg border bg-white/[0.08] ${
+          isMarkerDraftActive
+            ? "border-cyan-200/35 shadow-[0_0_0_3px_rgba(103,232,249,0.08)]"
+            : "border-white/5"
+        }`}
+        aria-label="Drag to select marker duration"
+        role="slider"
+        aria-valuemax={duration}
+        aria-valuemin={0}
+        aria-valuenow={currentTime}
+        tabIndex={0}
+        onPointerDown={(event) => {
+          if (!duration) {
+            return;
+          }
+
+          const pointerTime = getTimeFromPointer(event);
+          dragAnchorRef.current = pointerTime;
+          didDragRef.current = false;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          const anchorTime = dragAnchorRef.current;
+
+          if (anchorTime === null || !duration) {
+            return;
+          }
+
+          const pointerTime = getTimeFromPointer(event);
+
+          if (isMarkerDraftActive && Math.abs(pointerTime - anchorTime) >= 0.05) {
+            didDragRef.current = true;
+            updateDraftRange(anchorTime, pointerTime);
+          }
+        }}
+        onPointerUp={(event) => {
+          const anchorTime = dragAnchorRef.current;
+
+          if (anchorTime === null || !duration) {
+            return;
+          }
+
+          const pointerTime = getTimeFromPointer(event);
+
+          if (isMarkerDraftActive && didDragRef.current) {
+            updateDraftRange(anchorTime, pointerTime);
+          } else {
+            onSeek(pointerTime);
+          }
+
+          dragAnchorRef.current = null;
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+      >
+        <div
+          className="absolute inset-y-0 left-0 rounded-r-md bg-gradient-to-r from-fuchsia-400/24 via-fuchsia-300/18 to-cyan-300/16"
+          style={{ width: `${progress}%` }}
         />
+        {hasDraftRange ? (
+          <div
+            className="absolute inset-y-1 rounded-md border border-cyan-200/55 bg-cyan-300/14 shadow-[0_0_18px_rgba(103,232,249,0.25)]"
+            style={{ left: `${draftStart}%`, width: `${draftWidth}%` }}
+            aria-hidden="true"
+          >
+            <span className="absolute inset-y-1 left-0 w-1 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
+            <span className="absolute inset-y-1 right-0 w-1 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
+          </div>
+        ) : null}
+        <div
+          className="absolute inset-y-0 w-1.5 rounded-full bg-fuchsia-200 shadow-[0_0_18px_rgba(240,171,252,0.9)]"
+          style={{ left: `calc(${progress}% - 3px)` }}
+          aria-hidden="true"
+        />
+        <div className="absolute inset-x-2 top-1/2 flex -translate-y-1/2 items-center justify-between gap-1">
+          {waveformHeights.map((height, index) => (
+            <span
+              className="w-0.5 rounded-full bg-zinc-400/35"
+              key={`${height}-${index}`}
+              style={{ height: Math.max(10, height - 8) }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between px-1 font-mono text-xs font-black tabular-nums text-zinc-300">
+        <span>{formatTime(currentTime)}</span>
         <span>{formatTime(duration)}</span>
       </div>
 
-      <div className="transport-controls">
-        <button type="button" onClick={() => onSkip(-5)}>
-          Back 5s
+      <div className="mt-6 flex items-center justify-between gap-2">
+        <button
+          className={isLooping ? loopButtonOnClass : loopButtonOffClass}
+          type="button"
+          aria-pressed={isLooping}
+          title="Loop track"
+          onClick={onLoopToggle}
+        >
+          Loop
         </button>
-        <button type="button" onClick={onRestart}>
-          Restart
+        <button
+          className={controlButtonClass}
+          type="button"
+          title="Back 3 seconds"
+          onClick={() => onSkip(-3)}
+        >
+          -3s
         </button>
-        <button className="primary-action" type="button" onClick={isPlaying ? onPause : onPlay}>
-          {isPlaying ? "Pause" : "Play"}
+        <button
+          className="grid size-16 shrink-0 place-items-center rounded-full bg-fuchsia-300 text-lg font-black text-[#21132a] shadow-[0_0_22px_rgba(240,171,252,0.55)] transition hover:bg-fuchsia-200 active:scale-95"
+          type="button"
+          title={isPlaying ? "Pause" : "Play"}
+          onClick={isPlaying ? onPause : onPlay}
+        >
+          {isPlaying ? "II" : "Play"}
         </button>
-        <button type="button" onClick={() => onSkip(10)}>
-          Forward 10s
+        <button
+          className={controlButtonClass}
+          type="button"
+          title="Forward 3 seconds"
+          onClick={() => onSkip(3)}
+        >
+          +3s
         </button>
+        <label
+          className="grid size-12 shrink-0 place-items-center rounded-full border border-white/5 bg-white/[0.06] shadow-lg shadow-black/25"
+          title="Playback speed"
+        >
+          <span className="sr-only">Playback speed</span>
+          <select
+            className="h-full w-full cursor-pointer appearance-none rounded-full bg-transparent text-center text-xs font-black text-fuchsia-100 outline-none"
+            value={playbackRate}
+            onChange={(event) => onSpeedChange(Number(event.target.value))}
+          >
+            {speedOptions.map((speed) => (
+              <option className="bg-[#17181c] text-white" key={speed} value={speed}>
+                {speed}x
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
+
     </section>
   );
 }
