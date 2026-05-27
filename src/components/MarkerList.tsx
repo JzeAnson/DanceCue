@@ -32,18 +32,43 @@ function parseTimeInput(value: string) {
     return null;
   }
 
-  if (cleanedValue.includes(":")) {
-    const parts = cleanedValue.split(":").map(Number);
+  if (cleanedValue.includes(":") || cleanedValue.includes(".")) {
+    const separator = cleanedValue.includes(":") ? ":" : ".";
+    const parts = cleanedValue.split(separator);
 
-    if (parts.some((part) => !Number.isFinite(part) || part < 0)) {
+    if (
+      parts.length !== 2 ||
+      parts.some((part) => part.trim() === "") ||
+      !parts.every((part) => /^\d+$/.test(part.trim()))
+    ) {
       return null;
     }
 
-    return parts.reduce((total, part) => total * 60 + part, 0);
+    const [minutes, seconds] = parts.map(Number);
+
+    if (seconds >= 60) {
+      return null;
+    }
+
+    return minutes * 60 + seconds;
   }
 
   const seconds = Number(cleanedValue);
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
+}
+
+function formatTimeInput(totalSeconds: number) {
+  if (!Number.isFinite(totalSeconds)) {
+    return "0.00";
+  }
+
+  const safeSeconds = Math.max(totalSeconds, 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = Math.floor(safeSeconds % 60)
+    .toString()
+    .padStart(2, "0");
+
+  return `${minutes}.${seconds}`;
 }
 
 function formatMarkerTime(totalSeconds: number) {
@@ -123,8 +148,8 @@ export function MarkerList({
       return;
     }
 
-    setStartInput(clampTime(markerDraftRange.start).toFixed(2));
-    setEndInput(clampTime(markerDraftRange.end).toFixed(2));
+    setStartInput(formatTimeInput(clampTime(markerDraftRange.start)));
+    setEndInput(formatTimeInput(clampTime(markerDraftRange.end)));
     setErrorMessage("");
   }, [duration, markerDraftRange]);
 
@@ -159,7 +184,7 @@ export function MarkerList({
           }
 
           if (startTime === null || endTime === null) {
-            setErrorMessage("Use seconds like 0.50s or time like 1:05.");
+            setErrorMessage("Use minutes.seconds like 3.05 for 3 minutes 5 seconds.");
             return;
           }
 
@@ -196,7 +221,7 @@ export function MarkerList({
               aria-label="Marker start time"
               inputMode="decimal"
               name="markerStart"
-              placeholder="0.50s"
+              placeholder="0.50"
               value={startInput}
               onChange={(event) => {
                 setStartInput(event.target.value);
@@ -213,7 +238,7 @@ export function MarkerList({
               aria-label="Marker end time"
               inputMode="decimal"
               name="markerEnd"
-              placeholder="1.05s"
+              placeholder="1.05"
               value={endInput}
               onChange={(event) => {
                 setEndInput(event.target.value);
@@ -281,11 +306,11 @@ export function MarkerList({
                   aria-pressed={isLooping}
                   onClick={() => (isLooping ? onStopLoop() : onStartLoop(marker))}
                 >
-                  {isLooping ? "On" : "Loop"}
+                  Loop
                 </button>
                 <button
                   aria-label={`Remove ${marker.name}`}
-                  className="grid size-9 shrink-0 place-items-center rounded-full border border-transparent text-lg font-black text-[#ffb1c3]/55 opacity-0 transition hover:border-[#ffb1c3]/35 hover:bg-[#e8006e]/12 hover:text-[#ffb1c3] group-hover:opacity-100 group-focus-within:opacity-100"
+                  className="grid size-9 shrink-0 place-items-center rounded-full border border-[#ffb1c3]/25 bg-[#e8006e]/[0.08] text-lg font-black text-[#ffb1c3]/85 transition hover:border-[#ffb1c3]/45 hover:bg-[#e8006e]/[0.16] hover:text-[#ffd3df] focus:outline-none focus:ring-2 focus:ring-[#ffb1c3]/35"
                   type="button"
                   onClick={() => onRemoveMarker(marker.id)}
                 >

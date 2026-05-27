@@ -22,6 +22,27 @@ const buttonClass =
 const panelClass = "rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-lg shadow-black/20";
 const eyebrowClass = "font-mono text-[0.68rem] font-bold uppercase tracking-[0.16em] text-cyan-200";
 
+function MicrophoneIcon() {
+  return (
+    <svg aria-hidden="true" className="size-6" fill="none" viewBox="0 0 24 24">
+      <path
+        d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 1 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <path
+        d="M5 10.5a7 7 0 0 0 14 0M12 17.5V21M9 21h6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
 export function VoiceCommandPanel({
   isListening,
   isSupported,
@@ -44,16 +65,26 @@ export function VoiceCommandPanel({
         />
       </div>
 
-      <button
-        className={`mt-5 min-h-16 w-full rounded-full border border-white/20 bg-gradient-to-r from-fuchsia-500 to-cyan-400 px-6 text-base font-black text-white shadow-lg shadow-fuchsia-950/40 transition hover:from-fuchsia-400 hover:to-cyan-300 disabled:cursor-not-allowed disabled:opacity-45 ${
-          isListening ? "animate-pulse" : ""
-        }`}
-        disabled={!isSupported}
-        type="button"
-        onClick={onToggleListening}
-      >
-        {isListening ? "Stop listening" : "Start listening"}
-      </button>
+      <div className="mt-5 flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3">
+        <button
+          aria-label={isListening ? "Stop listening" : "Start listening"}
+          className={`grid size-14 shrink-0 place-items-center rounded-full border border-white/20 bg-gradient-to-r from-fuchsia-500 to-cyan-400 text-white shadow-lg shadow-fuchsia-950/40 transition hover:from-fuchsia-400 hover:to-cyan-300 disabled:cursor-not-allowed disabled:opacity-45 ${
+            isListening ? "animate-pulse" : ""
+          }`}
+          disabled={!isSupported}
+          title={isListening ? "Stop listening" : "Start listening"}
+          type="button"
+          onClick={onToggleListening}
+        >
+          <MicrophoneIcon />
+        </button>
+        <div className="min-w-0">
+          <span className="block truncate font-black text-white">{status}</span>
+          <small className="block truncate text-sm leading-5 text-zinc-400">
+            {lastTranscript ? `Heard: "${lastTranscript}"` : "Press the microphone to start voice control."}
+          </small>
+        </div>
+      </div>
 
       {!isSupported && (
         <p className="mt-3 text-sm leading-6 text-zinc-400">
@@ -61,14 +92,7 @@ export function VoiceCommandPanel({
         </p>
       )}
 
-      <div className="my-4 grid gap-1 rounded-xl border border-white/10 bg-black/25 p-4">
-        <span className="font-black text-white">{status}</span>
-        <small className="text-sm leading-5 text-zinc-400">
-          {lastTranscript ? `Heard: "${lastTranscript}"` : "No command heard yet."}
-        </small>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2">
         {sampleCommands.map((command) => (
           <button
             className={buttonClass}

@@ -193,34 +193,20 @@ function App() {
     <main className="min-h-screen bg-[#101114] px-4 py-5 font-sans text-zinc-100 sm:px-6">
       <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#17181c] shadow-2xl shadow-black/40">
         <section className="border-b border-white/10 bg-gradient-to-br from-fuchsia-500/18 via-[#1b1d24] to-cyan-400/14 px-5 pb-5 pt-6">
-          <div className="flex items-start justify-between gap-4">
+          <div>
             <div>
               <p className="font-mono text-[0.7rem] font-bold uppercase tracking-[0.16em] text-cyan-200">
                 DanceCue
               </p>
-              <h1 className="mt-2 text-3xl font-black leading-none tracking-normal text-white">
+              <h1 className="mt-2 whitespace-nowrap text-2xl font-black leading-tight tracking-normal text-white">
                 Rehearse in motion
               </h1>
-            </div>
-            <div className="rounded-full border border-cyan-200/30 bg-cyan-200/10 px-3 py-1.5 text-xs font-bold text-cyan-100">
-              Web-phone
             </div>
           </div>
           <p className="mt-4 text-sm leading-6 text-zinc-300">
             Load a track, mark rehearsal sections, and control jumps or loops with short voice
             commands while you stay in motion.
           </p>
-          <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4 shadow-inner shadow-white/5">
-            <span className="font-mono text-[0.7rem] font-bold uppercase tracking-[0.14em] text-zinc-400">
-              Active section
-            </span>
-            <strong className="mt-2 block truncate text-2xl font-black text-fuchsia-100">
-              {player.activeMarker?.name ?? "No marker yet"}
-            </strong>
-            <small className="mt-1 block font-mono text-xs uppercase text-cyan-100/80">
-              {player.loopMarker ? `Looping ${player.loopMarker.name}` : "Loop off"}
-            </small>
-          </div>
         </section>
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">

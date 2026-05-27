@@ -95,7 +95,7 @@ export function AudioPlayer({
             ? "border-cyan-200/35 shadow-[0_0_0_3px_rgba(103,232,249,0.08)]"
             : "border-white/5"
         }`}
-        aria-label="Drag to select marker duration"
+        aria-label={isMarkerDraftActive ? "Drag to select marker duration" : "Seek through track"}
         role="slider"
         aria-valuemax={duration}
         aria-valuemin={0}
@@ -123,6 +123,12 @@ export function AudioPlayer({
           if (isMarkerDraftActive && Math.abs(pointerTime - anchorTime) >= 0.05) {
             didDragRef.current = true;
             updateDraftRange(anchorTime, pointerTime);
+            return;
+          }
+
+          if (!isMarkerDraftActive) {
+            didDragRef.current = true;
+            onSeek(pointerTime);
           }
         }}
         onPointerUp={(event) => {
@@ -142,6 +148,14 @@ export function AudioPlayer({
 
           dragAnchorRef.current = null;
           event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={(event) => {
+          dragAnchorRef.current = null;
+          didDragRef.current = false;
+
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
         }}
       >
         <div

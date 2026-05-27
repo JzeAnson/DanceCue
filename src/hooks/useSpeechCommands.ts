@@ -34,6 +34,11 @@ const numberWords: Record<string, number> = {
   thirty: 30,
 };
 
+const numberWordByDigit = Object.entries(numberWords).reduce<Record<string, string>>(
+  (numbers, [word, value]) => ({ ...numbers, [String(value)]: word }),
+  {},
+);
+
 function parseSeconds(command: string, fallback: number) {
   const digitMatch = command.match(/\b(\d+)\b/);
 
@@ -46,11 +51,139 @@ function parseSeconds(command: string, fallback: number) {
 }
 
 function normalize(value: string) {
-  return value.trim().toLowerCase();
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function findMarker(command: string, markers: Marker[]) {
-  return markers.find((marker) => command.includes(marker.name.toLowerCase()));
+  const normalizedCommand = ` ${normalize(command)} `;
+  const markerPhrases = getMarkerPhrases(command);
+  const markerCandidates = markers.flatMap((marker) =>
+    getMarkerAliases(marker.name).map((alias) => ({
+      alias,
+      marker,
+      score: alias.length,
+    })),
+  );
+
+  const exactMatch = markerCandidates
+    .filter(({ alias }) => normalizedCommand.includes(` ${alias} `))
+    .sort((a, b) => b.score - a.score)[0]?.marker;
+
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  return markerCandidates
+    .flatMap(({ alias, marker }) =>
+      markerPhrases.map((phrase) => ({
+        marker,
+        score: getPhraseSimilarity(alias, phrase) * alias.length,
+        similarity: getPhraseSimilarity(alias, phrase),
+      })),
+    )
+    .filter(({ similarity }) => similarity >= 0.74)
+    .sort((a, b) => b.score - a.score)[0]?.marker;
+}
+
+function getMarkerAliases(name: string) {
+  const normalizedName = normalize(name);
+  const aliases = new Set([normalizedName]);
+  const words = normalizedName.split(" ");
+
+  words.forEach((word, index) => {
+    if (numberWordByDigit[word]) {
+      const nextWords = [...words];
+      nextWords[index] = numberWordByDigit[word];
+      aliases.add(nextWords.join(" "));
+      return;
+    }
+
+    if (numberWords[word]) {
+      const nextWords = [...words];
+      nextWords[index] = String(numberWords[word]);
+      aliases.add(nextWords.join(" "));
+    }
+  });
+
+  return [...aliases].filter(Boolean);
+}
+
+function getMarkerPhrases(command: string) {
+  const normalizedCommand = normalize(command);
+  const cuePrefixes = ["go to", "goto", "jump to", "loop"];
+  const phrases = new Set([normalizedCommand]);
+
+  cuePrefixes.forEach((prefix) => {
+    const index = normalizedCommand.indexOf(prefix);
+
+    if (index >= 0) {
+      phrases.add(normalizedCommand.slice(index + prefix.length).trim());
+    }
+  });
+
+  return [...phrases].filter(Boolean);
+}
+
+function getPhraseSimilarity(markerName: string, heardPhrase: string) {
+  const markerWords = markerName.split(" ");
+  const heardWords = heardPhrase.split(" ");
+
+  if (markerWords.length > heardWords.length) {
+    return 0;
+  }
+
+  const possibleStarts = heardWords.length - markerWords.length + 1;
+  const scores = Array.from({ length: possibleStarts }, (_, startIndex) => {
+    const heardWindow = heardWords.slice(startIndex, startIndex + markerWords.length);
+    const wordScores = markerWords.map((word, index) => getWordSimilarity(word, heardWindow[index]));
+    return wordScores.reduce((total, score) => total + score, 0) / wordScores.length;
+  });
+
+  return Math.max(...scores, 0);
+}
+
+function getWordSimilarity(expected: string, heard: string) {
+  if (expected === heard) {
+    return 1;
+  }
+
+  if (
+    expected.length >= 4 &&
+    heard.length >= 4 &&
+    (expected.startsWith(heard) || heard.startsWith(expected))
+  ) {
+    return 0.92;
+  }
+
+  const longestLength = Math.max(expected.length, heard.length);
+
+  if (longestLength === 0) {
+    return 1;
+  }
+
+  return 1 - getEditDistance(expected, heard) / longestLength;
+}
+
+function getEditDistance(left: string, right: string) {
+  const previousRow = Array.from({ length: right.length + 1 }, (_, index) => index);
+
+  return [...left].reduce((previous, leftChar, leftIndex) => {
+    const current = [leftIndex + 1];
+
+    [...right].forEach((rightChar, rightIndex) => {
+      current[rightIndex + 1] =
+        leftChar === rightChar
+          ? previous[rightIndex]
+          : Math.min(previous[rightIndex], previous[rightIndex + 1], current[rightIndex]) + 1;
+    });
+
+    return current;
+  }, previousRow)[right.length];
 }
 
 export function useSpeechCommands(handlers: CommandHandlers) {
