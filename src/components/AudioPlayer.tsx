@@ -8,7 +8,6 @@ type AudioPlayerProps = {
   isLooping: boolean;
   isPlaying: boolean;
   markerDraftRange: { start: number; end: number } | null;
-  onFileSelected: (file: File) => void;
   onLoopToggle: () => void;
   onMarkerDraftChange: (range: { start: number; end: number } | null) => void;
   onPause: () => void;
@@ -54,7 +53,6 @@ export function AudioPlayer({
   isLooping,
   isPlaying,
   markerDraftRange,
-  onFileSelected,
   onLoopToggle,
   onMarkerDraftChange,
   onPause,
@@ -89,26 +87,6 @@ export function AudioPlayer({
 
   return (
     <section className={panelClass} aria-label="Music player">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="grid min-w-0 flex-1 grid-cols-4 gap-3 text-center">
-        </div>
-        <label className="inline-flex min-h-8 cursor-pointer items-center justify-center rounded-full border border-fuchsia-200/20 bg-fuchsia-200/10 px-3 text-[0.68rem] font-black text-fuchsia-100 transition hover:border-fuchsia-100/45">
-          <input
-            className="absolute size-0 opacity-0"
-            accept=".mp3,audio/mpeg,audio/mp3,audio/*"
-            type="file"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-
-              if (file) {
-                onFileSelected(file);
-              }
-            }}
-          />
-          Load
-        </label>
-      </div>
-
       <audio ref={audioRef} />
 
       <div

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioPlayer } from "./components/AudioPlayer";
 import { MarkerList } from "./components/MarkerList";
+import { SourceLoader } from "./components/SourceLoader";
 import { VoiceCommandPanel } from "./components/VoiceCommandPanel";
+import { YouTubePlayer } from "./components/YouTubePlayer";
 import { useAudioPlayer } from "./hooks/useAudioPlayer";
 import { useSpeechCommands } from "./hooks/useSpeechCommands";
 import type { Marker } from "./types/marker";
@@ -13,18 +15,78 @@ const starterMarkers: Marker[] = [
   { id: "bridge", name: "Bridge", time: 90, endTime: 120 },
 ];
 
+const sessionStorageKey = "dancecue:session:v1";
+
+type StoredDanceCueSession = {
+  activeSource: "youtube" | null;
+  markers: Marker[];
+  playbackRate: number;
+  updatedAt: number;
+  youtubeTime: number;
+  youtubeVideoId: string | null;
+};
+
+function isStoredMarker(value: unknown): value is Marker {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const marker = value as Marker;
+
+  return (
+    typeof marker.id === "string" &&
+    typeof marker.name === "string" &&
+    typeof marker.time === "number" &&
+    typeof marker.endTime === "number"
+  );
+}
+
+function readStoredSession(): StoredDanceCueSession | null {
+  const storedValue = window.localStorage.getItem(sessionStorageKey);
+
+  if (!storedValue) {
+    return null;
+  }
+
+  try {
+    const session = JSON.parse(storedValue) as Partial<StoredDanceCueSession>;
+
+    return {
+      activeSource: session.activeSource === "youtube" ? "youtube" : null,
+      markers: Array.isArray(session.markers) && session.markers.every(isStoredMarker)
+        ? session.markers
+        : starterMarkers,
+      playbackRate: typeof session.playbackRate === "number" ? session.playbackRate : 1,
+      updatedAt: typeof session.updatedAt === "number" ? session.updatedAt : Date.now(),
+      youtubeTime: typeof session.youtubeTime === "number" ? session.youtubeTime : 0,
+      youtubeVideoId:
+        typeof session.youtubeVideoId === "string" && session.youtubeVideoId
+          ? session.youtubeVideoId
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function makeMarkerId(name: string) {
   return `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
 }
 
 function App() {
+  const [storedSession] = useState(() => readStoredSession());
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingRestoreTimeRef = useRef(storedSession?.youtubeTime ?? 0);
+  const hasRestoredPlaybackRef = useRef(false);
   const [markerDraftRange, setMarkerDraftRange] = useState<{ start: number; end: number } | null>(
     null,
   );
   const [isMarkerDraftActive, setIsMarkerDraftActive] = useState(false);
   const [markerDraftActivationKey, setMarkerDraftActivationKey] = useState(0);
-  const [markers, setMarkers] = useState<Marker[]>(starterMarkers);
+  const [markers, setMarkers] = useState<Marker[]>(() => storedSession?.markers ?? starterMarkers);
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(() =>
+    storedSession?.activeSource === "youtube" ? storedSession.youtubeVideoId : null,
+  );
 
   const sortedMarkers = useMemo(
     () => [...markers].sort((a, b) => a.time - b.time),
@@ -32,6 +94,42 @@ function App() {
   );
 
   const player = useAudioPlayer({ audioRef, markers: sortedMarkers });
+
+  useEffect(() => {
+    if (storedSession?.activeSource !== "youtube" || !storedSession.youtubeVideoId) {
+      return;
+    }
+
+    player.loadYouTube(storedSession.youtubeVideoId);
+  }, [player.loadYouTube, storedSession]);
+
+  useEffect(() => {
+    if (
+      hasRestoredPlaybackRef.current ||
+      player.activeSource !== "youtube" ||
+      player.duration <= 0 ||
+      pendingRestoreTimeRef.current <= 0
+    ) {
+      return;
+    }
+
+    hasRestoredPlaybackRef.current = true;
+    player.setSpeed(storedSession?.playbackRate ?? 1);
+    player.seekTo(Math.min(pendingRestoreTimeRef.current, player.duration));
+  }, [player.activeSource, player.duration, player.seekTo, player.setSpeed, storedSession]);
+
+  useEffect(() => {
+    const session: StoredDanceCueSession = {
+      activeSource: player.activeSource === "youtube" ? "youtube" : null,
+      markers,
+      playbackRate: player.playbackRate,
+      updatedAt: Date.now(),
+      youtubeTime: player.activeSource === "youtube" ? player.currentTime : 0,
+      youtubeVideoId: player.activeSource === "youtube" ? youtubeVideoId : null,
+    };
+
+    window.localStorage.setItem(sessionStorageKey, JSON.stringify(session));
+  }, [markers, player.activeSource, player.currentTime, player.playbackRate, youtubeVideoId]);
 
   const addMarker = (name: string, startTime: number, endTime: number) => {
     setMarkers((currentMarkers) => [
@@ -126,6 +224,25 @@ function App() {
         </section>
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <SourceLoader
+            activeSource={player.activeSource}
+            onFileSelected={(file) => {
+              setYoutubeVideoId(null);
+              player.loadFile(file);
+            }}
+            onYouTubeSelected={(videoId) => {
+              setYoutubeVideoId(videoId);
+              player.loadYouTube(videoId);
+            }}
+          />
+
+          <YouTubePlayer
+            isVisible={player.activeSource === "youtube"}
+            videoId={youtubeVideoId}
+            onReady={player.attachYouTubePlayer}
+            onStateChange={player.handleYouTubeStateChange}
+          />
+
           <AudioPlayer
             audioRef={audioRef}
             currentTime={player.currentTime}
@@ -133,7 +250,6 @@ function App() {
             isMarkerDraftActive={isMarkerDraftActive}
             isLooping={player.isLooping}
             isPlaying={player.isPlaying}
-            onFileSelected={player.loadFile}
             onLoopToggle={player.toggleLoop}
             markerDraftRange={markerDraftRange}
             onPause={player.pause}

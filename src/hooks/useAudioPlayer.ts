@@ -1,4 +1,5 @@
 import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { YouTubePlayerHandle } from "../components/YouTubePlayer";
 import type { Marker } from "../types/marker";
 
 type UseAudioPlayerOptions = {
@@ -6,7 +7,16 @@ type UseAudioPlayerOptions = {
   markers: Marker[];
 };
 
+type PlayerSource = "file" | "youtube" | null;
+
+const youtubeStates = {
+  ended: 0,
+  playing: 1,
+  paused: 2,
+};
+
 export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
+  const [activeSource, setActiveSource] = useState<PlayerSource>(null);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -14,6 +24,8 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [loopMarkerId, setLoopMarkerId] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const pendingYouTubeVideoIdRef = useRef<string | null>(null);
+  const youtubePlayerRef = useRef<YouTubePlayerHandle | null>(null);
 
   const sortedMarkers = useMemo(
     () => [...markers].sort((a, b) => a.time - b.time),
@@ -44,10 +56,12 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
 
       const url = URL.createObjectURL(file);
       objectUrlRef.current = url;
+      youtubePlayerRef.current?.pauseVideo();
       audio.src = url;
       audio.loop = false;
       audio.playbackRate = 1;
       audio.load();
+      setActiveSource("file");
       setCurrentTime(0);
       setDuration(0);
       setIsPlaying(false);
@@ -58,7 +72,55 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
     [audioRef],
   );
 
+  const loadYouTube = useCallback(
+    (videoId: string) => {
+      const audio = audioRef.current;
+
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
+
+      pendingYouTubeVideoIdRef.current = videoId;
+      setActiveSource("youtube");
+      setCurrentTime(0);
+      setDuration(0);
+      setIsPlaying(false);
+      setIsLooping(false);
+      setPlaybackRate(1);
+      setLoopMarkerId(null);
+
+      if (youtubePlayerRef.current) {
+        youtubePlayerRef.current.cueVideoById(videoId);
+        youtubePlayerRef.current.setPlaybackRate(1);
+      }
+    },
+    [audioRef],
+  );
+
+  const attachYouTubePlayer = useCallback((player: YouTubePlayerHandle) => {
+    youtubePlayerRef.current = player;
+
+    if (pendingYouTubeVideoIdRef.current) {
+      player.cueVideoById(pendingYouTubeVideoIdRef.current);
+    }
+  }, []);
+
+  const handleYouTubeStateChange = useCallback((state: number) => {
+    setIsPlaying(state === youtubeStates.playing);
+
+    if (state === youtubeStates.ended) {
+      setIsPlaying(false);
+    }
+  }, []);
+
   const play = useCallback(async () => {
+    if (activeSource === "youtube") {
+      youtubePlayerRef.current?.playVideo();
+      return;
+    }
+
     const audio = audioRef.current;
 
     if (!audio || !audio.src) {
@@ -66,13 +128,25 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
     }
 
     await audio.play();
-  }, [audioRef]);
+  }, [activeSource, audioRef]);
 
   const pause = useCallback(() => {
+    if (activeSource === "youtube") {
+      youtubePlayerRef.current?.pauseVideo();
+      return;
+    }
+
     audioRef.current?.pause();
-  }, [audioRef]);
+  }, [activeSource, audioRef]);
 
   const restart = useCallback(() => {
+    if (activeSource === "youtube") {
+      youtubePlayerRef.current?.seekTo(0, true);
+      youtubePlayerRef.current?.playVideo();
+      setCurrentTime(0);
+      return;
+    }
+
     const audio = audioRef.current;
 
     if (!audio) {
@@ -81,10 +155,18 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
 
     audio.currentTime = 0;
     void audio.play();
-  }, [audioRef]);
+  }, [activeSource, audioRef]);
 
   const seekTo = useCallback(
     (time: number) => {
+      if (activeSource === "youtube") {
+        const youtubeDuration = youtubePlayerRef.current?.getDuration() ?? duration;
+        const safeTime = Math.min(Math.max(time, 0), youtubeDuration || time);
+        youtubePlayerRef.current?.seekTo(safeTime, true);
+        setCurrentTime(safeTime);
+        return;
+      }
+
       const audio = audioRef.current;
 
       if (!audio) {
@@ -95,14 +177,19 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
       audio.currentTime = safeTime;
       setCurrentTime(safeTime);
     },
-    [audioRef, duration],
+    [activeSource, audioRef, duration],
   );
 
   const skipBy = useCallback(
     (seconds: number) => {
-      seekTo((audioRef.current?.currentTime ?? 0) + seconds);
+      const sourceCurrentTime =
+        activeSource === "youtube"
+          ? youtubePlayerRef.current?.getCurrentTime() ?? currentTime
+          : audioRef.current?.currentTime ?? currentTime;
+
+      seekTo(sourceCurrentTime + seconds);
     },
-    [audioRef, seekTo],
+    [activeSource, audioRef, currentTime, seekTo],
   );
 
   const jumpToMarker = useCallback(
@@ -134,7 +221,7 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
     setIsLooping((currentValue) => {
       const nextValue = !currentValue;
 
-      if (audioRef.current) {
+      if (audioRef.current && activeSource !== "youtube") {
         audioRef.current.loop = nextValue;
       }
 
@@ -144,17 +231,22 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
 
       return nextValue;
     });
-  }, [audioRef]);
+  }, [activeSource, audioRef]);
 
   const setSpeed = useCallback(
     (speed: number) => {
       setPlaybackRate(speed);
 
+      if (activeSource === "youtube") {
+        youtubePlayerRef.current?.setPlaybackRate(speed);
+        return;
+      }
+
       if (audioRef.current) {
         audioRef.current.playbackRate = speed;
       }
     },
-    [audioRef],
+    [activeSource, audioRef],
   );
 
   useEffect(() => {
@@ -166,6 +258,42 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
   }, []);
 
   useEffect(() => {
+    if (activeSource !== "youtube") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const player = youtubePlayerRef.current;
+
+      if (!player) {
+        return;
+      }
+
+      const nextCurrentTime = player.getCurrentTime() || 0;
+      const nextDuration = player.getDuration() || 0;
+      setCurrentTime(nextCurrentTime);
+      setDuration(nextDuration);
+
+      if (loopMarker) {
+        const loopEnd = loopMarker.endTime || nextDuration;
+
+        if (loopEnd > loopMarker.time && nextCurrentTime >= loopEnd) {
+          player.seekTo(loopMarker.time, true);
+        }
+
+        return;
+      }
+
+      if (isLooping && nextDuration > 0 && nextCurrentTime >= nextDuration - 0.2) {
+        player.seekTo(0, true);
+        player.playVideo();
+      }
+    }, 250);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeSource, isLooping, loopMarker]);
+
+  useEffect(() => {
     const audio = audioRef.current;
 
     if (!audio) {
@@ -174,6 +302,10 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
 
     const handleLoadedMetadata = () => setDuration(audio.duration || 0);
     const handleTimeUpdate = () => {
+      if (activeSource === "youtube") {
+        return;
+      }
+
       const nextTime = audio.currentTime;
       setCurrentTime(nextTime);
 
@@ -204,18 +336,22 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
       audio.removeEventListener("pause", handlePause);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, [audioRef, duration, loopMarker, sortedMarkers]);
+  }, [activeSource, audioRef, duration, loopMarker, sortedMarkers]);
 
   return {
     activeMarker,
+    activeSource,
+    attachYouTubePlayer,
     currentTime,
     duration,
+    handleYouTubeStateChange,
     isLooping,
     isPlaying,
     playbackRate,
     loopMarker,
     jumpToMarker,
     loadFile,
+    loadYouTube,
     pause,
     play,
     restart,

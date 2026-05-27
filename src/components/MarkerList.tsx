@@ -254,22 +254,34 @@ export function MarkerList({
                 onClick={() => onJumpToMarker(marker)}
               >
                 <span
-                  className={`block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-lg font-black leading-none tracking-normal sm:text-xl ${markerColorClass}`}
+                  className={`block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-black leading-none tracking-normal sm:text-base ${markerColorClass}`}
                 >
                   {marker.name}
                 </span>
-                <small className="mt-2 block font-mono text-[0.62rem] font-bold uppercase tabular-nums tracking-normal text-[#d4c0d7]/70">
+                <small className="mt-1.5 block font-mono text-[0.56rem] font-bold uppercase tabular-nums tracking-normal text-[#d4c0d7]/70">
                   {formatMarkerTime(marker.time)} - {formatMarkerTime(marker.endTime)}
                 </small>
               </button>
               <div className="flex min-w-0 items-center gap-2">
                 <button
-                  className={`min-h-10 rounded-lg px-1 text-right font-mono text-lg font-bold tabular-nums tracking-normal transition hover:bg-white/5 focus:bg-white/5 focus:outline-none sm:text-xl ${markerColorClass}`}
+                  className={`min-h-9 rounded-lg px-1 text-right font-mono text-sm font-bold tabular-nums tracking-normal transition hover:bg-white/5 focus:bg-white/5 focus:outline-none sm:text-base ${markerColorClass}`}
                   type="button"
                   onClick={() => (isLooping ? onStopLoop() : onStartLoop(marker))}
                   title={isLooping ? "Stop loop" : "Loop marker"}
                 >
                   {formatStopwatchTime(markerDuration)}
+                </button>
+                <button
+                  className={`min-h-9 rounded-full border px-3 font-mono text-[0.62rem] font-black uppercase tracking-[0.12em] transition ${
+                    isLooping
+                      ? "border-cyan-100/60 bg-cyan-300/20 text-cyan-50 shadow-[0_0_14px_rgba(0,244,254,0.28)]"
+                      : "border-white/10 bg-white/[0.06] text-[#d4c0d7]/75 hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50"
+                  }`}
+                  type="button"
+                  aria-pressed={isLooping}
+                  onClick={() => (isLooping ? onStopLoop() : onStartLoop(marker))}
+                >
+                  {isLooping ? "On" : "Loop"}
                 </button>
                 <button
                   aria-label={`Remove ${marker.name}`}
