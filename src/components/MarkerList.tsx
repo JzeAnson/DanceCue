@@ -315,7 +315,7 @@ export function MarkerList({
 
           return (
             <article
-              className={`group grid cursor-pointer grid-cols-1 items-center gap-2 px-3 py-4 transition sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-3 sm:py-5 ${
+              className={`group relative grid cursor-pointer gap-3 px-3 py-4 pr-12 transition sm:px-4 sm:py-5 sm:pr-14 ${
                 isActive
                   ? "bg-gradient-to-r from-fuchsia-300/14 via-white/[0.05] to-cyan-300/10 shadow-[inset_4px_0_0_rgba(235,178,255,0.95)]"
                   : "bg-white/[0.02] hover:bg-white/[0.055]"
@@ -445,31 +445,35 @@ export function MarkerList({
                 </form>
               ) : (
                 <>
-                  <div className="min-w-0 rounded-lg px-1 text-left transition focus:bg-white/5 focus:outline-none">
-                    <span
-                      className={`block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-xs font-black leading-none tracking-normal sm:text-base ${markerColorClass}`}
-                    >
-                      {marker.name}
-                    </span>
-                    <span className="mt-1.5 grid min-w-0 justify-start gap-1">
-                      <small className="font-mono text-[0.56rem] font-bold uppercase tabular-nums tracking-normal text-[#d4c0d7]/70">
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                    <div className="min-w-0 rounded-lg px-1 text-left transition focus:bg-white/5 focus:outline-none">
+                      <div className="flex min-w-0 items-baseline gap-2">
+                        <span
+                          className={`min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-xs font-black leading-none tracking-normal sm:text-base ${markerColorClass}`}
+                        >
+                          {marker.name}
+                        </span>-
+                        <span
+                          className={`shrink-0 font-mono text-[0.62rem] font-bold tabular-nums tracking-normal sm:text-xs ${markerColorClass}`}
+                        >
+                          {formatStopwatchTime(markerDuration)}
+                        </span>
+                      </div>
+                      <small className="mt-1.5 block font-mono text-[0.56rem] font-bold uppercase tabular-nums tracking-normal text-[#d4c0d7]/70">
                         {formatMarkerTime(marker.time)} - {formatMarkerTime(marker.endTime)}
                       </small>
+                    </div>
+                    <div className="grid justify-items-end gap-1 pt-0.5">
                       {showPlayingPill ? (
-                        <small className="w-fit rounded-full border border-fuchsia-200/35 bg-fuchsia-300/15 px-1.5 py-0.5 font-mono text-[0.5rem] font-black uppercase tracking-[0.12em] text-fuchsia-50 shadow-[0_0_14px_rgba(235,178,255,0.24)] sm:px-2 sm:text-[0.52rem]">
+                        <small className="rounded-full border border-fuchsia-200/35 bg-fuchsia-300/15 px-1.5 py-0.5 font-mono text-[0.5rem] font-black uppercase tracking-[0.12em] text-fuchsia-50 shadow-[0_0_14px_rgba(235,178,255,0.24)] sm:px-2 sm:text-[0.52rem]">
                           Playing
                         </small>
                       ) : null}
-                    </span>
+                    </div>
                   </div>
-                  <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-                    <span
-                      className={`mr-auto px-1 text-right font-mono text-xs font-bold tabular-nums tracking-normal sm:mr-0 sm:text-base ${markerColorClass}`}
-                    >
-                      {formatStopwatchTime(markerDuration)}
-                    </span>
+                  <div className="grid grid-cols-2 gap-2 pl-1">
                     <button
-                      className={`min-h-8 rounded-full border px-2.5 font-mono text-[0.55rem] font-black uppercase tracking-[0.1em] transition sm:min-h-9 sm:px-3 sm:text-[0.62rem] sm:tracking-[0.12em] ${
+                      className={`min-h-7 rounded-full border px-2 font-mono text-[0.5rem] font-black uppercase tracking-[0.08em] transition sm:min-h-8 sm:px-2.5 sm:text-[0.58rem] sm:tracking-[0.1em] ${
                         isLooping
                           ? "border-cyan-100/60 bg-cyan-300/20 text-cyan-50 shadow-[0_0_14px_rgba(0,244,254,0.28)]"
                           : "border-white/10 bg-white/[0.06] text-[#d4c0d7]/75 hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50"
@@ -485,7 +489,7 @@ export function MarkerList({
                     </button>
                     <button
                       aria-label={`Edit ${marker.name}`}
-                      className="min-h-8 rounded-full border border-white/10 bg-white/[0.06] px-2.5 font-mono text-[0.55rem] font-black uppercase tracking-[0.1em] text-[#d4c0d7]/75 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50 sm:min-h-9 sm:px-3 sm:text-[0.62rem] sm:tracking-[0.12em]"
+                      className="min-h-7 rounded-full border border-white/10 bg-white/[0.06] px-2 font-mono text-[0.5rem] font-black uppercase tracking-[0.08em] text-[#d4c0d7]/75 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50 sm:min-h-8 sm:px-2.5 sm:text-[0.58rem] sm:tracking-[0.1em]"
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
@@ -494,18 +498,18 @@ export function MarkerList({
                     >
                       Edit
                     </button>
-                    <button
-                      aria-label={`Remove ${marker.name}`}
-                      className="grid size-8 shrink-0 place-items-center rounded-full border border-[#ffb1c3]/25 bg-[#e8006e]/[0.08] text-base font-black text-[#ffb1c3]/85 transition hover:border-[#ffb1c3]/45 hover:bg-[#e8006e]/[0.16] hover:text-[#ffd3df] focus:outline-none focus:ring-2 focus:ring-[#ffb1c3]/35 sm:size-9 sm:text-lg"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRemoveMarker(marker.id);
-                      }}
-                    >
-                      X
-                    </button>
                   </div>
+                  <button
+                    aria-label={`Remove ${marker.name}`}
+                    className="absolute right-3 top-3 grid size-8 shrink-0 place-items-center rounded-full border border-[#ffb1c3]/25 bg-[#e8006e]/[0.08] text-base font-black text-[#ffb1c3]/85 transition hover:border-[#ffb1c3]/45 hover:bg-[#e8006e]/[0.16] hover:text-[#ffd3df] focus:outline-none focus:ring-2 focus:ring-[#ffb1c3]/35 sm:right-4 sm:top-4 sm:size-9 sm:text-lg"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRemoveMarker(marker.id);
+                    }}
+                  >
+                    X
+                  </button>
                 </>
               )}
             </article>
