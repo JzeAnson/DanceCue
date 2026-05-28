@@ -21,9 +21,9 @@ type MarkerListProps = {
 };
 
 const buttonClass =
-  "min-h-11 rounded-full border border-white/10 bg-white/[0.08] px-3 text-sm font-bold text-zinc-100 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 active:translate-y-px";
+  "min-h-11 w-full rounded-full border border-white/10 bg-white/[0.08] px-3 text-sm font-bold text-zinc-100 transition hover:border-cyan-200/35 hover:bg-cyan-200/10 active:translate-y-px";
 const inputClass =
-  "min-h-12 min-w-0 rounded-lg border border-white/10 bg-white/[0.07] px-4 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] outline-none placeholder:text-zinc-500 focus:border-cyan-200/55 focus:bg-white/[0.1] focus:ring-4 focus:ring-cyan-300/10";
+  "min-h-12 w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.07] px-4 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] outline-none placeholder:text-zinc-500 focus:border-cyan-200/55 focus:bg-white/[0.1] focus:ring-4 focus:ring-cyan-300/10";
 const panelClass =
   "rounded-3xl border border-white/15 bg-white/[0.08] p-3 shadow-[0_0_32px_rgba(235,178,255,0.12),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl sm:p-4";
 const eyebrowClass = "font-mono text-[0.68rem] font-bold uppercase tracking-[0.16em] text-cyan-100";
@@ -315,7 +315,9 @@ export function MarkerList({
 
           return (
             <article
-              className={`group relative grid cursor-pointer gap-3 px-3 py-4 pr-12 transition sm:px-4 sm:py-5 sm:pr-14 ${
+              className={`group relative grid cursor-pointer gap-3 py-4 transition sm:py-5 ${
+                isEditing ? "px-4 sm:px-6" : "px-3 pr-12 sm:px-4 sm:pr-14"
+              } ${
                 isActive
                   ? "bg-gradient-to-r from-fuchsia-300/14 via-white/[0.05] to-cyan-300/10 shadow-[inset_4px_0_0_rgba(235,178,255,0.95)]"
                   : "bg-white/[0.02] hover:bg-white/[0.055]"
@@ -345,7 +347,7 @@ export function MarkerList({
             >
               {isEditing ? (
                 <form
-                  className="col-span-2 grid gap-2"
+                  className="col-span-full mx-auto grid w-full max-w-[360px] gap-2"
                   onClick={(event) => event.stopPropagation()}
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -501,7 +503,7 @@ export function MarkerList({
                   </div>
                   <button
                     aria-label={`Remove ${marker.name}`}
-                    className="absolute right-3 top-3 grid size-8 shrink-0 place-items-center rounded-full border border-[#ffb1c3]/25 bg-[#e8006e]/[0.08] text-base font-black text-[#ffb1c3]/85 transition hover:border-[#ffb1c3]/45 hover:bg-[#e8006e]/[0.16] hover:text-[#ffd3df] focus:outline-none focus:ring-2 focus:ring-[#ffb1c3]/35 sm:right-4 sm:top-4 sm:size-9 sm:text-lg"
+                    className="absolute right-3 top-3 grid size-8 shrink-0 place-items-center text-sm font-semibold leading-none text-[#ffb1c3]/45 opacity-70 transition hover:text-[#ffd3df]/90 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#ffb1c3]/25 sm:right-4 sm:top-4 sm:size-9 sm:text-base"
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
