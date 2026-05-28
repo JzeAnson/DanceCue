@@ -30,7 +30,7 @@ const waveformHeights = [
   22, 30, 18, 27, 35, 24, 31, 16, 38, 22, 28, 17, 34, 25, 19, 36, 42, 23, 31, 18, 35, 27, 21,
   32, 17, 25, 37, 29, 21, 34, 40, 18, 28, 36, 24, 32, 19,
 ];
-const speedOptions = [0.75, 1, 1.25, 1.5];
+const speedOptions = [0.75,0.8,0.9,1];
 
 export function formatTime(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds)) {

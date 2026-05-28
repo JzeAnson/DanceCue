@@ -23,6 +23,8 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
   const [isLooping, setIsLooping] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [loopMarkerId, setLoopMarkerId] = useState<string | null>(null);
+  const [markerPlaybackMarkerId, setMarkerPlaybackMarkerId] = useState<string | null>(null);
+  const markerPlaybackEndRef = useRef<number | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const pendingYouTubeVideoIdRef = useRef<string | null>(null);
   const youtubePlayerRef = useRef<YouTubePlayerHandle | null>(null);
@@ -33,6 +35,8 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
   );
 
   const loopMarker = sortedMarkers.find((marker) => marker.id === loopMarkerId) ?? null;
+  const markerPlaybackMarker =
+    sortedMarkers.find((marker) => marker.id === markerPlaybackMarkerId) ?? null;
 
   const activeMarker = useMemo(() => {
     return sortedMarkers.reduce<Marker | null>(
@@ -68,6 +72,8 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
       setIsLooping(false);
       setPlaybackRate(1);
       setLoopMarkerId(null);
+      setMarkerPlaybackMarkerId(null);
+      markerPlaybackEndRef.current = null;
     },
     [audioRef],
   );
@@ -90,6 +96,8 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
       setIsLooping(false);
       setPlaybackRate(1);
       setLoopMarkerId(null);
+      setMarkerPlaybackMarkerId(null);
+      markerPlaybackEndRef.current = null;
 
       if (youtubePlayerRef.current) {
         youtubePlayerRef.current.cueVideoById(videoId);
@@ -115,7 +123,7 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
     }
   }, []);
 
-  const play = useCallback(async () => {
+  const startPlayback = useCallback(async () => {
     if (activeSource === "youtube") {
       youtubePlayerRef.current?.playVideo();
       return;
@@ -130,6 +138,12 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
     await audio.play();
   }, [activeSource, audioRef]);
 
+  const play = useCallback(async () => {
+    markerPlaybackEndRef.current = null;
+    setMarkerPlaybackMarkerId(null);
+    await startPlayback();
+  }, [startPlayback]);
+
   const pause = useCallback(() => {
     if (activeSource === "youtube") {
       youtubePlayerRef.current?.pauseVideo();
@@ -140,6 +154,9 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
   }, [activeSource, audioRef]);
 
   const restart = useCallback(() => {
+    markerPlaybackEndRef.current = null;
+    setMarkerPlaybackMarkerId(null);
+
     if (activeSource === "youtube") {
       youtubePlayerRef.current?.seekTo(0, true);
       youtubePlayerRef.current?.playVideo();
@@ -194,23 +211,29 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
 
   const jumpToMarker = useCallback(
     (marker: Marker) => {
+      markerPlaybackEndRef.current = marker.endTime;
+      setMarkerPlaybackMarkerId(marker.id);
       seekTo(marker.time);
-      void play();
+      void startPlayback();
     },
-    [play, seekTo],
+    [seekTo, startPlayback],
   );
 
   const startLoop = useCallback(
     (marker: Marker) => {
+      markerPlaybackEndRef.current = null;
+      setMarkerPlaybackMarkerId(null);
+
       if (audioRef.current) {
         audioRef.current.loop = false;
       }
 
       setIsLooping(false);
       setLoopMarkerId(marker.id);
-      jumpToMarker(marker);
+      seekTo(marker.time);
+      void startPlayback();
     },
-    [audioRef, jumpToMarker],
+    [audioRef, seekTo, startPlayback],
   );
 
   const stopLoop = useCallback(() => {
@@ -220,6 +243,8 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
   const toggleLoop = useCallback(() => {
     setIsLooping((currentValue) => {
       const nextValue = !currentValue;
+      markerPlaybackEndRef.current = null;
+      setMarkerPlaybackMarkerId(null);
 
       if (audioRef.current && activeSource !== "youtube") {
         audioRef.current.loop = nextValue;
@@ -284,6 +309,17 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
         return;
       }
 
+      const markerPlaybackEnd = markerPlaybackEndRef.current;
+
+      if (markerPlaybackEnd !== null && nextCurrentTime >= markerPlaybackEnd) {
+        player.pauseVideo();
+        player.seekTo(markerPlaybackEnd, true);
+        setCurrentTime(markerPlaybackEnd);
+        setMarkerPlaybackMarkerId(null);
+        markerPlaybackEndRef.current = null;
+        return;
+      }
+
       if (isLooping && nextDuration > 0 && nextCurrentTime >= nextDuration - 0.2) {
         player.seekTo(0, true);
         player.playVideo();
@@ -310,6 +346,16 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
       setCurrentTime(nextTime);
 
       if (!loopMarker) {
+        const markerPlaybackEnd = markerPlaybackEndRef.current;
+
+        if (markerPlaybackEnd !== null && nextTime >= markerPlaybackEnd) {
+          audio.pause();
+          audio.currentTime = markerPlaybackEnd;
+          setCurrentTime(markerPlaybackEnd);
+          setMarkerPlaybackMarkerId(null);
+          markerPlaybackEndRef.current = null;
+        }
+
         return;
       }
 
@@ -349,6 +395,7 @@ export function useAudioPlayer({ audioRef, markers }: UseAudioPlayerOptions) {
     isPlaying,
     playbackRate,
     loopMarker,
+    markerPlaybackMarker,
     jumpToMarker,
     loadFile,
     loadYouTube,

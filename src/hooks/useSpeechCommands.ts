@@ -39,6 +39,9 @@ const numberWordByDigit = Object.entries(numberWords).reduce<Record<string, stri
   {},
 );
 
+const loopCommandWords = ["loop", "loops", "looping", "look", "looks", "looking", "luke"];
+const stopLoopPhrases = loopCommandWords.map((word) => `stop ${word}`);
+
 function parseSeconds(command: string, fallback: number) {
   const digitMatch = command.match(/\b(\d+)\b/);
 
@@ -57,6 +60,11 @@ function normalize(value: string) {
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function hasCommandPhrase(command: string, phrases: string[]) {
+  const paddedCommand = ` ${command} `;
+  return phrases.some((phrase) => paddedCommand.includes(` ${phrase} `));
 }
 
 function findMarker(command: string, markers: Marker[]) {
@@ -115,7 +123,7 @@ function getMarkerAliases(name: string) {
 
 function getMarkerPhrases(command: string) {
   const normalizedCommand = normalize(command);
-  const cuePrefixes = ["go to", "goto", "jump to", "loop"];
+  const cuePrefixes = ["go to", "goto", "jump to", ...loopCommandWords];
   const phrases = new Set([normalizedCommand]);
 
   cuePrefixes.forEach((prefix) => {
@@ -206,7 +214,7 @@ export function useSpeechCommands(handlers: CommandHandlers) {
         return { label: "No command heard", handled: false };
       }
 
-      if (command.includes("stop loop") || command.includes("stop looping")) {
+      if (hasCommandPhrase(command, stopLoopPhrases)) {
         handlers.onStopLoop();
         return { label: "Stopped loop", handled: true };
       }
@@ -238,7 +246,7 @@ export function useSpeechCommands(handlers: CommandHandlers) {
         return { label: `Forward ${seconds} seconds`, handled: true };
       }
 
-      if (command.includes("loop")) {
+      if (hasCommandPhrase(command, loopCommandWords)) {
         const marker = findMarker(command, handlers.markers);
 
         if (marker) {

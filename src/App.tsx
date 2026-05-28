@@ -149,6 +149,12 @@ function App() {
     setMarkers((currentMarkers) => currentMarkers.filter((marker) => marker.id !== markerId));
   };
 
+  const updateMarker = (updatedMarker: Marker) => {
+    setMarkers((currentMarkers) =>
+      currentMarkers.map((marker) => (marker.id === updatedMarker.id ? updatedMarker : marker)),
+    );
+  };
+
   const activateMarkerDraft = () => {
     setIsMarkerDraftActive(true);
     setMarkerDraftActivationKey((currentKey) => currentKey + 1);
@@ -254,6 +260,8 @@ function App() {
             currentTime={player.currentTime}
             duration={player.duration}
             markerDraftRange={markerDraftRange}
+            markerPlaybackMarker={player.markerPlaybackMarker}
+            isPlaying={player.isPlaying}
             loopMarker={player.loopMarker}
             markers={sortedMarkers}
             onActivateMarkerDraft={activateMarkerDraft}
@@ -262,6 +270,7 @@ function App() {
             onRemoveMarker={removeMarker}
             onStartLoop={player.startLoop}
             onStopLoop={player.stopLoop}
+            onUpdateMarker={updateMarker}
           />
 
           <VoiceCommandPanel

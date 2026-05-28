@@ -6,7 +6,9 @@ type MarkerListProps = {
   activeMarker: Marker | null;
   currentTime: number;
   duration: number;
+  isPlaying: boolean;
   markerDraftRange: { start: number; end: number } | null;
+  markerPlaybackMarker: Marker | null;
   loopMarker: Marker | null;
   markers: Marker[];
   onActivateMarkerDraft: () => void;
@@ -15,6 +17,7 @@ type MarkerListProps = {
   onRemoveMarker: (markerId: string) => void;
   onStartLoop: (marker: Marker) => void;
   onStopLoop: () => void;
+  onUpdateMarker: (marker: Marker) => void;
 };
 
 const buttonClass =
@@ -120,7 +123,9 @@ export function MarkerList({
   activeMarker,
   currentTime,
   duration,
+  isPlaying,
   markerDraftRange,
+  markerPlaybackMarker,
   loopMarker,
   markers,
   onActivateMarkerDraft,
@@ -129,7 +134,14 @@ export function MarkerList({
   onRemoveMarker,
   onStartLoop,
   onStopLoop,
+  onUpdateMarker,
 }: MarkerListProps) {
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [editingMarkerId, setEditingMarkerId] = useState<string | null>(null);
+  const [editEndInput, setEditEndInput] = useState("");
+  const [editErrorMessage, setEditErrorMessage] = useState("");
+  const [editNameInput, setEditNameInput] = useState("");
+  const [editStartInput, setEditStartInput] = useState("");
   const [endInput, setEndInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [nameInput, setNameInput] = useState("");
@@ -153,170 +165,349 @@ export function MarkerList({
     setErrorMessage("");
   }, [duration, markerDraftRange]);
 
+  const startEditingMarker = (marker: Marker) => {
+    setEditingMarkerId(marker.id);
+    setEditNameInput(marker.name);
+    setEditStartInput(formatTimeInput(clampTime(marker.time)));
+    setEditEndInput(formatTimeInput(clampTime(marker.endTime)));
+    setEditErrorMessage("");
+  };
+
+  const closeAddForm = () => {
+    setIsAddFormOpen(false);
+    setNameInput("");
+    setStartInput("");
+    setEndInput("");
+    setErrorMessage("");
+  };
+
   return (
-    <section
-      className={panelClass}
-      aria-label="Section markers"
-      onClick={onActivateMarkerDraft}
-      onFocus={onActivateMarkerDraft}
-    >
+    <section className={panelClass} aria-label="Section markers">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className={eyebrowClass}>Sections</p>
           <h2 className="mt-1 text-xl font-black text-white">Markers</h2>
         </div>
-        <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1.5 font-mono text-xs font-bold text-cyan-50">
-          Now {formatTime(currentTime)}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1.5 font-mono text-xs font-bold text-cyan-50">
+            Now {formatTime(currentTime)}
+          </span>
+          <button
+            className="min-h-9 rounded-full border border-cyan-200/35 bg-cyan-300/12 px-4 text-sm font-black text-cyan-50 transition hover:bg-cyan-300/18 active:translate-y-px"
+            type="button"
+            aria-expanded={isAddFormOpen}
+            onClick={() => {
+              if (isAddFormOpen) {
+                closeAddForm();
+                return;
+              }
+
+              setIsAddFormOpen(true);
+              onActivateMarkerDraft();
+            }}
+          >
+            Add
+          </button>
+        </div>
       </div>
 
-      <form
-        className="mt-4 grid gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const name = nameInput.trim();
-          const startTime = parseTimeInput(startInput);
-          const endTime = parseTimeInput(endInput);
+      {isAddFormOpen ? (
+        <form
+          className="mt-4 grid gap-2"
+          onFocus={onActivateMarkerDraft}
+          onSubmit={(event) => {
+            event.preventDefault();
+            const name = nameInput.trim();
+            const startTime = parseTimeInput(startInput);
+            const endTime = parseTimeInput(endInput);
 
-          if (!name) {
-            setErrorMessage("Name the marker first.");
-            return;
-          }
+            if (!name) {
+              setErrorMessage("Name the marker first.");
+              return;
+            }
 
-          if (startTime === null || endTime === null) {
-            setErrorMessage("Use minutes.seconds like 3.05 for 3 minutes 5 seconds.");
-            return;
-          }
+            if (startTime === null || endTime === null) {
+              setErrorMessage("Use minutes.seconds like 3.05 for 3 minutes 5 seconds.");
+              return;
+            }
 
-          const safeStartTime = clampTime(startTime);
-          const safeEndTime = clampTime(endTime);
+            const safeStartTime = clampTime(startTime);
+            const safeEndTime = clampTime(endTime);
 
-          if (safeEndTime <= safeStartTime) {
-            setErrorMessage("End time must be after start time.");
-            return;
-          }
+            if (safeEndTime <= safeStartTime) {
+              setErrorMessage("End time must be after start time.");
+              return;
+            }
 
-          onAddMarker(name, safeStartTime, safeEndTime);
-          setNameInput("");
-          setStartInput("");
-          setEndInput("");
-          setErrorMessage("");
-        }}
-      >
-        <input
-          className={inputClass}
-          aria-label="Marker name"
-          name="markerName"
-          placeholder="Add marker name"
-          value={nameInput}
-          onChange={(event) => setNameInput(event.target.value)}
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1">
-            <span className="px-1 text-[0.65rem] font-bold uppercase tracking-normal text-zinc-400">
-              Start
-            </span>
-            <input
-              className={inputClass}
-              aria-label="Marker start time"
-              inputMode="decimal"
-              name="markerStart"
-              placeholder="0.50"
-              value={startInput}
-              onChange={(event) => {
-                setStartInput(event.target.value);
-                setErrorMessage("");
-              }}
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="px-1 text-[0.65rem] font-bold uppercase tracking-normal text-zinc-400">
-              End
-            </span>
-            <input
-              className={inputClass}
-              aria-label="Marker end time"
-              inputMode="decimal"
-              name="markerEnd"
-              placeholder="1.05"
-              value={endInput}
-              onChange={(event) => {
-                setEndInput(event.target.value);
-                setErrorMessage("");
-              }}
-            />
-          </label>
-        </div>
-        <button className={buttonClass} type="submit">
-          Add marker
-        </button>
-        {errorMessage ? (
-          <p className="px-1 text-xs font-bold text-rose-200" role="alert">
-            {errorMessage}
-          </p>
-        ) : null}
-      </form>
+            onAddMarker(name, safeStartTime, safeEndTime);
+            closeAddForm();
+          }}
+        >
+          <input
+            className={inputClass}
+            aria-label="Marker name"
+            name="markerName"
+            placeholder="Add marker name"
+            value={nameInput}
+            onChange={(event) => setNameInput(event.target.value)}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="grid gap-1">
+              <span className="px-1 text-[0.65rem] font-bold uppercase tracking-normal text-zinc-400">
+                Start
+              </span>
+              <input
+                className={inputClass}
+                aria-label="Marker start time"
+                inputMode="decimal"
+                name="markerStart"
+                placeholder="0.50"
+                value={startInput}
+                onChange={(event) => {
+                  setStartInput(event.target.value);
+                  setErrorMessage("");
+                }}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="px-1 text-[0.65rem] font-bold uppercase tracking-normal text-zinc-400">
+                End
+              </span>
+              <input
+                className={inputClass}
+                aria-label="Marker end time"
+                inputMode="decimal"
+                name="markerEnd"
+                placeholder="1.05"
+                value={endInput}
+                onChange={(event) => {
+                  setEndInput(event.target.value);
+                  setErrorMessage("");
+                }}
+              />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button className={buttonClass} type="submit">
+              Save marker
+            </button>
+            <button className={buttonClass} type="button" onClick={closeAddForm}>
+              Cancel
+            </button>
+          </div>
+          {errorMessage ? (
+            <p className="px-1 text-xs font-bold text-rose-200" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
 
       <div className="mt-5 divide-y divide-[#504254]/70 overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e11]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
         {markers.map((marker, index) => {
           const isActive = activeMarker?.id === marker.id;
+          const isEditing = editingMarkerId === marker.id;
           const isLooping = loopMarker?.id === marker.id;
+          const isMarkerPlayback = isPlaying && markerPlaybackMarker?.id === marker.id;
+          const showPlayingPill = isMarkerPlayback || isLooping;
           const markerColorClass = getMarkerColorClass(isActive, isLooping, index);
           const markerDuration = marker.endTime - marker.time;
 
           return (
             <article
-              className={`group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-5 transition ${
+              className={`group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-5 transition ${
                 isActive
                   ? "bg-gradient-to-r from-fuchsia-300/14 via-white/[0.05] to-cyan-300/10 shadow-[inset_4px_0_0_rgba(235,178,255,0.95)]"
                   : "bg-white/[0.02] hover:bg-white/[0.055]"
               }`}
               key={marker.id}
+              onClick={() => {
+                if (!isEditing) {
+                  onJumpToMarker(marker);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (isEditing) {
+                  return;
+                }
+
+                if (event.target !== event.currentTarget) {
+                  return;
+                }
+
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onJumpToMarker(marker);
+                }
+              }}
+              role={isEditing ? undefined : "button"}
+              tabIndex={isEditing ? undefined : 0}
             >
-              <button
-                className="min-w-0 rounded-lg px-1 text-left transition focus:bg-white/5 focus:outline-none"
-                type="button"
-                onClick={() => onJumpToMarker(marker)}
-              >
-                <span
-                  className={`block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-black leading-none tracking-normal sm:text-base ${markerColorClass}`}
+              {isEditing ? (
+                <form
+                  className="col-span-2 grid gap-2"
+                  onClick={(event) => event.stopPropagation()}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const name = editNameInput.trim();
+                    const startTime = parseTimeInput(editStartInput);
+                    const endTime = parseTimeInput(editEndInput);
+
+                    if (!name) {
+                      setEditErrorMessage("Name the marker first.");
+                      return;
+                    }
+
+                    if (startTime === null || endTime === null) {
+                      setEditErrorMessage("Use minutes.seconds like 3.05 for 3 minutes 5 seconds.");
+                      return;
+                    }
+
+                    const safeStartTime = clampTime(startTime);
+                    const safeEndTime = clampTime(endTime);
+
+                    if (safeEndTime <= safeStartTime) {
+                      setEditErrorMessage("End time must be after start time.");
+                      return;
+                    }
+
+                    onUpdateMarker({
+                      ...marker,
+                      endTime: safeEndTime,
+                      name,
+                      time: safeStartTime,
+                    });
+                    setEditingMarkerId(null);
+                    setEditErrorMessage("");
+                  }}
                 >
-                  {marker.name}
-                </span>
-                <small className="mt-1.5 block font-mono text-[0.56rem] font-bold uppercase tabular-nums tracking-normal text-[#d4c0d7]/70">
-                  {formatMarkerTime(marker.time)} - {formatMarkerTime(marker.endTime)}
-                </small>
-              </button>
-              <div className="flex min-w-0 items-center gap-2">
-                <button
-                  className={`min-h-9 rounded-lg px-1 text-right font-mono text-sm font-bold tabular-nums tracking-normal transition hover:bg-white/5 focus:bg-white/5 focus:outline-none sm:text-base ${markerColorClass}`}
-                  type="button"
-                  onClick={() => (isLooping ? onStopLoop() : onStartLoop(marker))}
-                  title={isLooping ? "Stop loop" : "Loop marker"}
-                >
-                  {formatStopwatchTime(markerDuration)}
-                </button>
-                <button
-                  className={`min-h-9 rounded-full border px-3 font-mono text-[0.62rem] font-black uppercase tracking-[0.12em] transition ${
-                    isLooping
-                      ? "border-cyan-100/60 bg-cyan-300/20 text-cyan-50 shadow-[0_0_14px_rgba(0,244,254,0.28)]"
-                      : "border-white/10 bg-white/[0.06] text-[#d4c0d7]/75 hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50"
-                  }`}
-                  type="button"
-                  aria-pressed={isLooping}
-                  onClick={() => (isLooping ? onStopLoop() : onStartLoop(marker))}
-                >
-                  Loop
-                </button>
-                <button
-                  aria-label={`Remove ${marker.name}`}
-                  className="grid size-9 shrink-0 place-items-center rounded-full border border-[#ffb1c3]/25 bg-[#e8006e]/[0.08] text-lg font-black text-[#ffb1c3]/85 transition hover:border-[#ffb1c3]/45 hover:bg-[#e8006e]/[0.16] hover:text-[#ffd3df] focus:outline-none focus:ring-2 focus:ring-[#ffb1c3]/35"
-                  type="button"
-                  onClick={() => onRemoveMarker(marker.id)}
-                >
-                  X
-                </button>
-              </div>
+                  <input
+                    className={inputClass}
+                    aria-label={`Edit ${marker.name} name`}
+                    value={editNameInput}
+                    onChange={(event) => {
+                      setEditNameInput(event.target.value);
+                      setEditErrorMessage("");
+                    }}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="grid gap-1">
+                      <span className="px-1 text-[0.65rem] font-bold uppercase tracking-normal text-zinc-400">
+                        Start
+                      </span>
+                      <input
+                        className={inputClass}
+                        aria-label={`Edit ${marker.name} start time`}
+                        inputMode="decimal"
+                        value={editStartInput}
+                        onChange={(event) => {
+                          setEditStartInput(event.target.value);
+                          setEditErrorMessage("");
+                        }}
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="px-1 text-[0.65rem] font-bold uppercase tracking-normal text-zinc-400">
+                        End
+                      </span>
+                      <input
+                        className={inputClass}
+                        aria-label={`Edit ${marker.name} end time`}
+                        inputMode="decimal"
+                        value={editEndInput}
+                        onChange={(event) => {
+                          setEditEndInput(event.target.value);
+                          setEditErrorMessage("");
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className={buttonClass} type="submit">
+                      Save
+                    </button>
+                    <button
+                      className={buttonClass}
+                      type="button"
+                      onClick={() => {
+                        setEditingMarkerId(null);
+                        setEditErrorMessage("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {editErrorMessage ? (
+                    <p className="px-1 text-xs font-bold text-rose-200" role="alert">
+                      {editErrorMessage}
+                    </p>
+                  ) : null}
+                </form>
+              ) : (
+                <>
+                  <div className="min-w-0 rounded-lg px-1 text-left transition focus:bg-white/5 focus:outline-none">
+                    <span
+                      className={`block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-black leading-none tracking-normal sm:text-base ${markerColorClass}`}
+                    >
+                      {marker.name}
+                    </span>
+                    <span className="mt-1.5 grid min-w-0 justify-start gap-1">
+                      <small className="font-mono text-[0.56rem] font-bold uppercase tabular-nums tracking-normal text-[#d4c0d7]/70">
+                        {formatMarkerTime(marker.time)} - {formatMarkerTime(marker.endTime)}
+                      </small>
+                      {showPlayingPill ? (
+                        <small className="w-fit rounded-full border border-fuchsia-200/35 bg-fuchsia-300/15 px-2 py-0.5 font-mono text-[0.52rem] font-black uppercase tracking-[0.12em] text-fuchsia-50 shadow-[0_0_14px_rgba(235,178,255,0.24)]">
+                          Playing
+                        </small>
+                      ) : null}
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={`px-1 text-right font-mono text-sm font-bold tabular-nums tracking-normal sm:text-base ${markerColorClass}`}
+                    >
+                      {formatStopwatchTime(markerDuration)}
+                    </span>
+                    <button
+                      className={`min-h-9 rounded-full border px-3 font-mono text-[0.62rem] font-black uppercase tracking-[0.12em] transition ${
+                        isLooping
+                          ? "border-cyan-100/60 bg-cyan-300/20 text-cyan-50 shadow-[0_0_14px_rgba(0,244,254,0.28)]"
+                          : "border-white/10 bg-white/[0.06] text-[#d4c0d7]/75 hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50"
+                      }`}
+                      type="button"
+                      aria-pressed={isLooping}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        isLooping ? onStopLoop() : onStartLoop(marker);
+                      }}
+                    >
+                      Loop
+                    </button>
+                    <button
+                      aria-label={`Edit ${marker.name}`}
+                      className="min-h-9 rounded-full border border-white/10 bg-white/[0.06] px-3 font-mono text-[0.62rem] font-black uppercase tracking-[0.12em] text-[#d4c0d7]/75 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-50"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        startEditingMarker(marker);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      aria-label={`Remove ${marker.name}`}
+                      className="grid size-9 shrink-0 place-items-center rounded-full border border-[#ffb1c3]/25 bg-[#e8006e]/[0.08] text-lg font-black text-[#ffb1c3]/85 transition hover:border-[#ffb1c3]/45 hover:bg-[#e8006e]/[0.16] hover:text-[#ffd3df] focus:outline-none focus:ring-2 focus:ring-[#ffb1c3]/35"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRemoveMarker(marker.id);
+                      }}
+                    >
+                      X
+                    </button>
+                  </div>
+                </>
+              )}
             </article>
           );
         })}

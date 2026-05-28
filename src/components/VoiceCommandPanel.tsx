@@ -10,11 +10,12 @@ type VoiceCommandPanelProps = {
 const sampleCommands = [
   "Play",
   "Pause",
-  "Go to chorus",
-  "Loop chorus",
+  "Go to Chorus",
+  "Loop Chorus",
   "Stop loop",
-  "Back five seconds",
-  "Forward ten seconds",
+  "Back 5 seconds",
+  "Forward 10 seconds",
+  "Restart",
 ];
 
 const buttonClass =
