@@ -233,8 +233,8 @@ export function AudioPlayer({
             style={{ left: `${draftStart}%`, width: `${draftWidth}%` }}
             aria-hidden="true"
           >
-            <span className="absolute inset-y-1 left-0 w-3 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
-            <span className="absolute inset-y-1 right-0 w-3 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
+            <span className="absolute inset-y-1 left-0 w-1 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
+            <span className="absolute inset-y-1 right-0 w-1 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
           </div>
         ) : null}
         <div
