@@ -69,6 +69,12 @@ function readStoredSession(): StoredDanceCueSession | null {
   }
 }
 
+function hasStoredMusicSource() {
+  const storedSession = readStoredSession();
+
+  return storedSession?.activeSource === "youtube" && Boolean(storedSession.youtubeVideoId);
+}
+
 function makeMarkerId(name: string) {
   return `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
 }
@@ -78,6 +84,7 @@ function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingRestoreTimeRef = useRef(storedSession?.youtubeTime ?? 0);
   const hasRestoredPlaybackRef = useRef(false);
+  const firstYouTubeRefreshTimeoutRef = useRef<number | null>(null);
   const [markerDraftRange, setMarkerDraftRange] = useState<{ start: number; end: number } | null>(
     null,
   );
@@ -130,6 +137,14 @@ function App() {
 
     window.localStorage.setItem(sessionStorageKey, JSON.stringify(session));
   }, [markers, player.activeSource, player.currentTime, player.playbackRate, youtubeVideoId]);
+
+  useEffect(() => {
+    return () => {
+      if (firstYouTubeRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(firstYouTubeRefreshTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const addMarker = (name: string, startTime: number, endTime: number) => {
     setMarkers((currentMarkers) => [
@@ -223,8 +238,19 @@ function App() {
               player.loadFile(file);
             }}
             onYouTubeSelected={(videoId) => {
+              const shouldRefreshAfterFirstYouTube = !hasStoredMusicSource();
+
               setYoutubeVideoId(videoId);
               player.loadYouTube(videoId);
+
+              if (
+                shouldRefreshAfterFirstYouTube &&
+                firstYouTubeRefreshTimeoutRef.current === null
+              ) {
+                firstYouTubeRefreshTimeoutRef.current = window.setTimeout(() => {
+                  window.location.reload();
+                }, 2000);
+              }
             }}
           />
 
