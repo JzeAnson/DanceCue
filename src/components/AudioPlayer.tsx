@@ -105,7 +105,7 @@ export function AudioPlayer({
 
     const start = Math.max(Math.min(markerDraftRange.start, duration), 0);
     const end = Math.max(Math.min(markerDraftRange.end, duration), 0);
-    const edgeGrabDistance = Math.max(duration * 0.015, 1);
+    const edgeGrabDistance = Math.min(Math.max(duration * 0.04, 3), 10);
     const isNearStart = Math.abs(pointerTime - start) <= edgeGrabDistance;
     const isNearEnd = Math.abs(pointerTime - end) <= edgeGrabDistance;
 
@@ -233,8 +233,8 @@ export function AudioPlayer({
             style={{ left: `${draftStart}%`, width: `${draftWidth}%` }}
             aria-hidden="true"
           >
-            <span className="absolute inset-y-1 left-0 w-1 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
-            <span className="absolute inset-y-1 right-0 w-1 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
+            <span className="absolute inset-y-1 left-0 w-3 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
+            <span className="absolute inset-y-1 right-0 w-3 rounded-full bg-cyan-100 shadow-[0_0_12px_rgba(165,243,252,0.75)]" />
           </div>
         ) : null}
         <div
@@ -271,10 +271,10 @@ export function AudioPlayer({
         <button
           className={controlButtonClass}
           type="button"
-          title="Back 3 seconds"
-          onClick={() => onSkip(-3)}
+          title="Back 5 seconds"
+          onClick={() => onSkip(-5)}
         >
-          -3s
+          -5s
         </button>
         <button
           className="grid size-16 shrink-0 place-items-center rounded-full bg-fuchsia-300 text-lg font-black text-[#21132a] shadow-[0_0_22px_rgba(240,171,252,0.55)] transition hover:bg-fuchsia-200 active:scale-95"
@@ -287,10 +287,10 @@ export function AudioPlayer({
         <button
           className={controlButtonClass}
           type="button"
-          title="Forward 3 seconds"
-          onClick={() => onSkip(3)}
+          title="Forward 5 seconds"
+          onClick={() => onSkip(5)}
         >
-          +3s
+          +5s
         </button>
         <label
           className="grid size-12 shrink-0 place-items-center rounded-full border border-white/5 bg-white/[0.06] shadow-lg shadow-black/25"
