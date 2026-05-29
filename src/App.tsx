@@ -89,7 +89,6 @@ function App() {
     null,
   );
   const [isMarkerDraftActive, setIsMarkerDraftActive] = useState(false);
-  const [markerDraftActivationKey, setMarkerDraftActivationKey] = useState(0);
   const [markers, setMarkers] = useState<Marker[]>(() => storedSession?.markers ?? starterMarkers);
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(() =>
     storedSession?.activeSource === "youtube" ? storedSession.youtubeVideoId : null,
@@ -170,31 +169,22 @@ function App() {
     );
   };
 
-  const activateMarkerDraft = () => {
+  const activateMarkerDraft = (range?: { start: number; end: number }) => {
+    if (range) {
+      setMarkerDraftRange(range);
+    }
+
     setIsMarkerDraftActive(true);
-    setMarkerDraftActivationKey((currentKey) => currentKey + 1);
+  };
+
+  const cancelMarkerDraft = () => {
+    setMarkerDraftRange(null);
+    setIsMarkerDraftActive(false);
   };
 
   const updateMarkerDraftRange = useCallback((range: { start: number; end: number } | null) => {
     setMarkerDraftRange(range);
-
-    if (range) {
-      setMarkerDraftActivationKey((currentKey) => currentKey + 1);
-    }
   }, []);
-
-  useEffect(() => {
-    if (!isMarkerDraftActive) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setIsMarkerDraftActive(false);
-      setMarkerDraftRange(null);
-    }, 10000);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isMarkerDraftActive, markerDraftActivationKey]);
 
   const speech = useSpeechCommands({
     markers: sortedMarkers,
@@ -292,6 +282,7 @@ function App() {
             markers={sortedMarkers}
             onActivateMarkerDraft={activateMarkerDraft}
             onAddMarker={addMarker}
+            onCancelMarkerDraft={cancelMarkerDraft}
             onJumpToMarker={player.jumpToMarker}
             onRemoveMarker={removeMarker}
             onStartLoop={player.startLoop}

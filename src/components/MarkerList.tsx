@@ -11,8 +11,9 @@ type MarkerListProps = {
   markerPlaybackMarker: Marker | null;
   loopMarker: Marker | null;
   markers: Marker[];
-  onActivateMarkerDraft: () => void;
+  onActivateMarkerDraft: (range?: { start: number; end: number }) => void;
   onAddMarker: (name: string, startTime: number, endTime: number) => void;
+  onCancelMarkerDraft: () => void;
   onJumpToMarker: (marker: Marker) => void;
   onRemoveMarker: (markerId: string) => void;
   onStartLoop: (marker: Marker) => void;
@@ -130,6 +131,7 @@ export function MarkerList({
   markers,
   onActivateMarkerDraft,
   onAddMarker,
+  onCancelMarkerDraft,
   onJumpToMarker,
   onRemoveMarker,
   onStartLoop,
@@ -160,17 +162,28 @@ export function MarkerList({
       return;
     }
 
-    setStartInput(formatTimeInput(clampTime(markerDraftRange.start)));
-    setEndInput(formatTimeInput(clampTime(markerDraftRange.end)));
-    setErrorMessage("");
-  }, [duration, markerDraftRange]);
+    if (editingMarkerId) {
+      setEditStartInput(formatTimeInput(clampTime(markerDraftRange.start)));
+      setEditEndInput(formatTimeInput(clampTime(markerDraftRange.end)));
+      setEditErrorMessage("");
+      return;
+    }
+
+    if (isAddFormOpen) {
+      setStartInput(formatTimeInput(clampTime(markerDraftRange.start)));
+      setEndInput(formatTimeInput(clampTime(markerDraftRange.end)));
+      setErrorMessage("");
+    }
+  }, [duration, editingMarkerId, isAddFormOpen, markerDraftRange]);
 
   const startEditingMarker = (marker: Marker) => {
+    setIsAddFormOpen(false);
     setEditingMarkerId(marker.id);
     setEditNameInput(marker.name);
     setEditStartInput(formatTimeInput(clampTime(marker.time)));
     setEditEndInput(formatTimeInput(clampTime(marker.endTime)));
     setEditErrorMessage("");
+    onActivateMarkerDraft({ start: clampTime(marker.time), end: clampTime(marker.endTime) });
   };
 
   const closeAddForm = () => {
@@ -179,6 +192,7 @@ export function MarkerList({
     setStartInput("");
     setEndInput("");
     setErrorMessage("");
+    onCancelMarkerDraft();
   };
 
   return (
@@ -214,7 +228,7 @@ export function MarkerList({
       {isAddFormOpen ? (
         <form
           className="mt-4 grid gap-2"
-          onFocus={onActivateMarkerDraft}
+          onFocus={() => onActivateMarkerDraft()}
           onSubmit={(event) => {
             event.preventDefault();
             const name = nameInput.trim();
@@ -381,6 +395,7 @@ export function MarkerList({
                     });
                     setEditingMarkerId(null);
                     setEditErrorMessage("");
+                    onCancelMarkerDraft();
                   }}
                 >
                   <input
@@ -434,6 +449,7 @@ export function MarkerList({
                       onClick={() => {
                         setEditingMarkerId(null);
                         setEditErrorMessage("");
+                        onCancelMarkerDraft();
                       }}
                     >
                       Cancel

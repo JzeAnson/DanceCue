@@ -1,5 +1,10 @@
 import { useRef } from "react";
 
+type DraftDragState =
+  | { anchorTime: number; mode: "select" }
+  | { fixedTime: number; mode: "resize" }
+  | { length: number; mode: "move"; offset: number };
+
 type AudioPlayerProps = {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   currentTime: number;
@@ -30,7 +35,7 @@ const waveformHeights = [
   22, 30, 18, 27, 35, 24, 31, 16, 38, 22, 28, 17, 34, 25, 19, 36, 42, 23, 31, 18, 35, 27, 21,
   32, 17, 25, 37, 29, 21, 34, 40, 18, 28, 36, 24, 32, 19,
 ];
-const speedOptions = [0.75,0.8,0.9,1];
+const speedOptions = [0.75,0.8,0.9,1,1.25];
 
 export function formatTime(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds)) {
@@ -63,10 +68,11 @@ export function AudioPlayer({
   playbackRate,
 }: AudioPlayerProps) {
   const dragAnchorRef = useRef<number | null>(null);
+  const draftDragStateRef = useRef<DraftDragState | null>(null);
   const didDragRef = useRef(false);
   const progress = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
   const hasDraftRange =
-    isMarkerDraftActive && duration > 0 && markerDraftRange && markerDraftRange.end > markerDraftRange.start;
+    duration > 0 && markerDraftRange && markerDraftRange.end > markerDraftRange.start;
   const draftStart = hasDraftRange ? (markerDraftRange.start / duration) * 100 : 0;
   const draftWidth = hasDraftRange ? ((markerDraftRange.end - markerDraftRange.start) / duration) * 100 : 0;
 
@@ -83,6 +89,39 @@ export function AudioPlayer({
     const end = Math.max(anchorTime, pointerTime);
 
     onMarkerDraftChange({ start, end });
+  };
+
+  const moveDraftRange = (pointerTime: number, length: number, offset: number) => {
+    const start = Math.min(Math.max(pointerTime - offset, 0), Math.max(duration - length, 0));
+    const end = Math.min(start + length, duration);
+
+    onMarkerDraftChange({ start, end });
+  };
+
+  const getDraftDragState = (pointerTime: number): DraftDragState => {
+    if (!markerDraftRange || markerDraftRange.end <= markerDraftRange.start) {
+      return { anchorTime: pointerTime, mode: "select" };
+    }
+
+    const start = Math.max(Math.min(markerDraftRange.start, duration), 0);
+    const end = Math.max(Math.min(markerDraftRange.end, duration), 0);
+    const edgeGrabDistance = Math.max(duration * 0.015, 1);
+    const isNearStart = Math.abs(pointerTime - start) <= edgeGrabDistance;
+    const isNearEnd = Math.abs(pointerTime - end) <= edgeGrabDistance;
+
+    if (isNearStart || pointerTime < start) {
+      return { fixedTime: end, mode: "resize" };
+    }
+
+    if (isNearEnd || pointerTime > end) {
+      return { fixedTime: start, mode: "resize" };
+    }
+
+    return {
+      length: end - start,
+      mode: "move",
+      offset: pointerTime - start,
+    };
   };
 
   return (
@@ -108,6 +147,9 @@ export function AudioPlayer({
 
           const pointerTime = getTimeFromPointer(event);
           dragAnchorRef.current = pointerTime;
+          draftDragStateRef.current = isMarkerDraftActive
+            ? getDraftDragState(pointerTime)
+            : null;
           didDragRef.current = false;
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
@@ -121,8 +163,21 @@ export function AudioPlayer({
           const pointerTime = getTimeFromPointer(event);
 
           if (isMarkerDraftActive && Math.abs(pointerTime - anchorTime) >= 0.05) {
+            const draftDragState = draftDragStateRef.current;
+
             didDragRef.current = true;
-            updateDraftRange(anchorTime, pointerTime);
+
+            if (draftDragState?.mode === "resize") {
+              updateDraftRange(draftDragState.fixedTime, pointerTime);
+              return;
+            }
+
+            if (draftDragState?.mode === "move") {
+              moveDraftRange(pointerTime, draftDragState.length, draftDragState.offset);
+              return;
+            }
+
+            updateDraftRange(draftDragState?.anchorTime ?? anchorTime, pointerTime);
             return;
           }
 
@@ -141,16 +196,26 @@ export function AudioPlayer({
           const pointerTime = getTimeFromPointer(event);
 
           if (isMarkerDraftActive && didDragRef.current) {
-            updateDraftRange(anchorTime, pointerTime);
+            const draftDragState = draftDragStateRef.current;
+
+            if (draftDragState?.mode === "resize") {
+              updateDraftRange(draftDragState.fixedTime, pointerTime);
+            } else if (draftDragState?.mode === "move") {
+              moveDraftRange(pointerTime, draftDragState.length, draftDragState.offset);
+            } else {
+              updateDraftRange(draftDragState?.anchorTime ?? anchorTime, pointerTime);
+            }
           } else {
             onSeek(pointerTime);
           }
 
           dragAnchorRef.current = null;
+          draftDragStateRef.current = null;
           event.currentTarget.releasePointerCapture(event.pointerId);
         }}
         onPointerCancel={(event) => {
           dragAnchorRef.current = null;
+          draftDragStateRef.current = null;
           didDragRef.current = false;
 
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
