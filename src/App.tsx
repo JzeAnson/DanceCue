@@ -7,6 +7,11 @@ import { YouTubePlayer } from "./components/YouTubePlayer";
 import { useAudioPlayer } from "./hooks/useAudioPlayer";
 import { useSpeechCommands } from "./hooks/useSpeechCommands";
 import type { Marker } from "./types/marker";
+import {
+  deleteStoredAudioFile,
+  readStoredAudioFile,
+  saveStoredAudioFile,
+} from "./utils/storedAudioFile";
 
 const starterMarkers: Marker[] = [
   { id: "intro", name: "Intro", time: 0, endTime: 30 },
@@ -18,7 +23,9 @@ const starterMarkers: Marker[] = [
 const sessionStorageKey = "dancecue:session:v1";
 
 type StoredDanceCueSession = {
-  activeSource: "youtube" | null;
+  activeSource: "file" | "youtube" | null;
+  fileName: string | null;
+  fileTime: number;
   markers: Marker[];
   playbackRate: number;
   updatedAt: number;
@@ -52,7 +59,12 @@ function readStoredSession(): StoredDanceCueSession | null {
     const session = JSON.parse(storedValue) as Partial<StoredDanceCueSession>;
 
     return {
-      activeSource: session.activeSource === "youtube" ? "youtube" : null,
+      activeSource:
+        session.activeSource === "file" || session.activeSource === "youtube"
+          ? session.activeSource
+          : null,
+      fileName: typeof session.fileName === "string" && session.fileName ? session.fileName : null,
+      fileTime: typeof session.fileTime === "number" ? session.fileTime : 0,
       markers: Array.isArray(session.markers) && session.markers.every(isStoredMarker)
         ? session.markers
         : starterMarkers,
@@ -82,14 +94,24 @@ function makeMarkerId(name: string) {
 function App() {
   const [storedSession] = useState(() => readStoredSession());
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const pendingRestoreTimeRef = useRef(storedSession?.youtubeTime ?? 0);
+  const pendingRestoreTimeRef = useRef(
+    storedSession?.activeSource === "file"
+      ? storedSession.fileTime
+      : storedSession?.youtubeTime ?? 0,
+  );
   const hasRestoredPlaybackRef = useRef(false);
   const firstYouTubeRefreshTimeoutRef = useRef<number | null>(null);
+  const [isRestoringStoredSource, setIsRestoringStoredSource] = useState(
+    () => storedSession?.activeSource !== null && Boolean(storedSession?.activeSource),
+  );
   const [markerDraftRange, setMarkerDraftRange] = useState<{ start: number; end: number } | null>(
     null,
   );
   const [isMarkerDraftActive, setIsMarkerDraftActive] = useState(false);
   const [markers, setMarkers] = useState<Marker[]>(() => storedSession?.markers ?? starterMarkers);
+  const [localFileName, setLocalFileName] = useState<string | null>(
+    () => storedSession?.fileName ?? null,
+  );
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(() =>
     storedSession?.activeSource === "youtube" ? storedSession.youtubeVideoId : null,
   );
@@ -102,17 +124,50 @@ function App() {
   const player = useAudioPlayer({ audioRef, markers: sortedMarkers });
 
   useEffect(() => {
-    if (storedSession?.activeSource !== "youtube" || !storedSession.youtubeVideoId) {
+    if (!storedSession?.activeSource) {
+      return;
+    }
+
+    if (storedSession.activeSource === "file") {
+      let isCanceled = false;
+
+      readStoredAudioFile()
+        .then((file) => {
+          if (isCanceled) {
+            return;
+          }
+
+          if (file) {
+            setLocalFileName(file.name);
+            player.loadFile(file);
+          }
+
+          setIsRestoringStoredSource(false);
+        })
+        .catch(() => {
+          if (!isCanceled) {
+            setIsRestoringStoredSource(false);
+          }
+        });
+
+      return () => {
+        isCanceled = true;
+      };
+    }
+
+    if (!storedSession.youtubeVideoId) {
+      setIsRestoringStoredSource(false);
       return;
     }
 
     player.loadYouTube(storedSession.youtubeVideoId);
-  }, [player.loadYouTube, storedSession]);
+    setIsRestoringStoredSource(false);
+  }, [player.loadFile, player.loadYouTube, storedSession]);
 
   useEffect(() => {
     if (
       hasRestoredPlaybackRef.current ||
-      player.activeSource !== "youtube" ||
+      !player.activeSource ||
       player.duration <= 0 ||
       pendingRestoreTimeRef.current <= 0
     ) {
@@ -125,8 +180,17 @@ function App() {
   }, [player.activeSource, player.duration, player.seekTo, player.setSpeed, storedSession]);
 
   useEffect(() => {
+    if (isRestoringStoredSource) {
+      return;
+    }
+
     const session: StoredDanceCueSession = {
-      activeSource: player.activeSource === "youtube" ? "youtube" : null,
+      activeSource:
+        player.activeSource === "file" || player.activeSource === "youtube"
+          ? player.activeSource
+          : null,
+      fileName: player.activeSource === "file" ? localFileName : null,
+      fileTime: player.activeSource === "file" ? player.currentTime : 0,
       markers,
       playbackRate: player.playbackRate,
       updatedAt: Date.now(),
@@ -135,7 +199,15 @@ function App() {
     };
 
     window.localStorage.setItem(sessionStorageKey, JSON.stringify(session));
-  }, [markers, player.activeSource, player.currentTime, player.playbackRate, youtubeVideoId]);
+  }, [
+    isRestoringStoredSource,
+    markers,
+    localFileName,
+    player.activeSource,
+    player.currentTime,
+    player.playbackRate,
+    youtubeVideoId,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -225,12 +297,16 @@ function App() {
             activeSource={player.activeSource}
             onFileSelected={(file) => {
               setYoutubeVideoId(null);
+              setLocalFileName(file.name);
+              void saveStoredAudioFile(file).catch(() => undefined);
               player.loadFile(file);
             }}
             onYouTubeSelected={(videoId) => {
               const shouldRefreshAfterFirstYouTube = !hasStoredMusicSource();
 
               setYoutubeVideoId(videoId);
+              setLocalFileName(null);
+              void deleteStoredAudioFile().catch(() => undefined);
               player.loadYouTube(videoId);
 
               if (
